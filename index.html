@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The DE Interview — data engineering interview prep, interactively</title>
-<meta name="description" content="An interactive data-engineering interview guide: SQL, data modeling, big-data fundamentals, Spark internals and tuning, PySpark, Snowflake, SnapLogic, DevOps and MLOps — with runnable simulators, worked examples, and real interview questions.">
+<meta name="description" content="An interactive data-engineering interview guide: SQL, data modeling, big-data fundamentals, Spark internals and tuning, PySpark, Snowflake, data integration, DevOps and MLOps — with runnable simulators, worked examples, and real interview questions.">
 <meta property="og:title" content="Learn Lakehouse — the open lakehouse, explained interactively">
 <meta property="og:description" content="Apache Iceberg from the metadata tree up: snapshots, atomic commits, hidden partitioning, catalogs, engines, and production practice — with simulators you can drag.">
 <meta property="og:type" content="website">
@@ -426,7 +426,7 @@ details.qa[open]>summary::before{transform:rotate(90deg)}
       </svg>
       <p class="kicker">An interactive interview companion</p>
       <h1 class="big">The <em>DE</em> Interview</h1>
-      <p class="sub"><b>All five rounds of the loop, end to end</b> — SQL, data modeling, ETL and pipeline design, Spark internals and tuning, PySpark, streaming, Snowflake and SnapLogic, DevOps and MLOps, the system design round that filters senior candidates, and the behavioral round that quietly decides offers.</p>
+      <p class="sub"><b>All five rounds of the loop, end to end</b> — SQL, data modeling, ETL and pipeline design, Spark internals and tuning, PySpark, streaming, Snowflake, AWS and the cloud stack, DevOps and MLOps, the system design round that filters senior candidates, and the behavioral round that quietly decides offers — calibrated to the Indian market: product companies, GCCs, fintech, and FAANG-India.</p>
       <div class="cta-row">
         <a class="btn solid" href="#/ch/0">Start reading</a>
         <a class="btn" href="#/ch/5" id="continueBtn" hidden>Continue reading</a>
@@ -478,7 +478,8 @@ details.qa[open]>summary::before{transform:rotate(90deg)}
           <li><b>Platform / behavioral.</b> Orchestration, CI/CD, testing, an incident you owned. Idempotency, backfills, and blast radius are the words they're listening for.</li>
         </ul>
         <div class="note"><p class="nt">The through-line</p><p>Almost every technical question reduces to one of three anxieties: <b>is it correct</b> (NULLs, duplicates, grain), <b>will it scale</b> (shuffle, skew, partitioning), and <b>what happens when it breaks</b> (idempotency, backfills, recovery). When a question feels open-ended, answer along those three axes and you'll sound like someone who has run things in production.</p></div>
-      </section>
+      <div class="note"><p class="nt">The Indian loop, specifically</p><p>Everything above holds for India loops, with four local realities. Screens are usually <b>HackerRank/HackerEarth OAs</b> or platform interviews, and a referral moves your resume further than any portal. If you are crossing from <b>services to product</b>, reframe your experience as problems owned, not tickets closed — the pipeline I owned, the incident I handled, the cost I cut — because that translation is the actual interview. <b>GCC loops speak Azure</b>, product loops speak AWS; know one deeply and map to the other. And your <b>notice period</b> is a negotiating variable from the first recruiter call — have your buyout number ready.</p></div>
+        </section>
 
       <section class="sec" id="s0-2" data-num="0.2" data-t="What senior answers sound like">
         <p class="sec-num">0.2</p><h2>What senior answers sound like</h2>
@@ -496,7 +497,7 @@ details.qa[open]>summary::before{transform:rotate(90deg)}
 
       <section class="sec" id="s0-3" data-num="0.3" data-t="How to use this guide">
         <p class="sec-num">0.3</p><h2>How to use this guide</h2>
-        <p>The chapters build in the order interviews probe: <b>SQL</b> (1), <b>data modeling</b> (2), <b>big-data fundamentals</b> (3), then three chapters on Spark — the <b>execution engine</b> (4), <b>performance tuning</b> (5), and the <b>PySpark coding round</b> (6) — then <b>Snowflake &amp; SnapLogic</b> (7) and <b>DevOps &amp; MLOps</b> (8).</p>
+        <p>The chapters build in the order interviews probe: <b>SQL</b> (1), <b>data modeling</b> (2), <b>big-data fundamentals</b> (3), then three chapters on Spark — the <b>execution engine</b> (4), <b>performance tuning</b> (5), and the <b>PySpark coding round</b> (6) — then <b>Snowflake &amp; the cloud stack</b> (7) and <b>DevOps &amp; MLOps</b> (8).</p>
         <p>Every chapter has the same rhythm: prose you can read on a train, a <b>simulator</b> for the mechanical parts, worked <b>examples</b> in SQL or PySpark, and <b>interview-angle</b> callouts. Two appendices back the chapters: a <a href="#/bank">question bank</a> of the questions themselves with model answers you can rehearse, and <a href="#/sheets">cheat sheets</a> — the dense tables (join strategies, window frames, SCD types, warehouse sizes) worth a last glance before you walk in.</p>
         <p>Press <b>/</b> anywhere to search every section. Your place is remembered, so "Continue reading" picks up where you left off. Now, chapter 1.</p>
         <div class="pn"></div>
@@ -702,10 +703,10 @@ details.qa[open]>summary::before{transform:rotate(90deg)}
   <div class="wrap"><div class="ch-grid">
     <aside class="side"></aside>
     <article class="art">
-      <p class="crumb"><a href="#/">Contents</a> · Chapter 3 · Big data fundamentals</p>
+      <p class="crumb"><a href="#/">Contents</a> · Chapter 4 · Big data fundamentals</p>
 
       <section class="sec" id="s4-1" data-num="4.1" data-t="Why distribute at all">
-        <p class="sec-num">3.1</p><h2>Why distribute at all</h2>
+        <p class="sec-num">4.1</p><h2>Why distribute at all</h2>
         <p>Distributed data processing exists for one blunt reason: the data no longer fits — in memory, on a disk, or in the time budget of a single machine. Once you accept many machines, three facts govern everything that follows, and every performance question in this guide is a consequence of them.</p>
         <ul>
           <li><b>Partitioning.</b> The data is split into chunks, and each machine works on its own chunk in parallel. Throughput scales with the number of partitions — until one of the next two facts stops you.</li>
@@ -716,7 +717,7 @@ details.qa[open]>summary::before{transform:rotate(90deg)}
       </section>
 
       <section class="sec" id="s4-2" data-num="4.2" data-t="From MapReduce to the DAG">
-        <p class="sec-num">3.2</p><h2>From MapReduce to the DAG</h2>
+        <p class="sec-num">4.2</p><h2>From MapReduce to the DAG</h2>
         <p>The original model was <b>MapReduce</b>: a <b>map</b> step transforms records independently in parallel, a <b>shuffle</b> groups them by key across the network, and a <b>reduce</b> step aggregates each group. It's still the right mental model for what happens under the hood — map is per-record and cheap, reduce needs the shuffle and is where the cost lives.</p>
         <p>MapReduce's fatal flaw was that every step wrote its full output to disk before the next could start, so a multi-step job hammered disk between every stage. <b>Spark's</b> key insight was to keep intermediate data in memory and to model the whole job as a <b>DAG</b> — a directed acyclic graph of transformations — that it can optimize as a unit before running anything. Same map/shuffle/reduce physics; far less disk, and a planner that sees the whole computation.</p>
         <p>Two ideas from that DAG matter for interviews and recur through the Spark chapters. First, <b>lazy evaluation</b>: Spark records transformations without executing them, then plans and runs only when an action forces a result (§5.2) — which is what lets it optimize across steps. Second, <b>lineage</b>: because the DAG is the recipe for every partition, a lost partition is recomputed from its inputs rather than checkpointed, which is how Spark tolerates machine failure for free.</p>
@@ -724,7 +725,7 @@ details.qa[open]>summary::before{transform:rotate(90deg)}
       </section>
 
       <section class="sec" id="s4-3" data-num="4.3" data-t="The shuffle">
-        <p class="sec-num">3.3</p><h2>The shuffle</h2>
+        <p class="sec-num">4.3</p><h2>The shuffle</h2>
         <p>The <b>shuffle</b> is the beating heart of distributed processing and the number-one interview topic in this whole chapter. Whenever an operation needs all records with the same key together — <code>GROUP BY</code>, <code>JOIN</code>, <code>reduceByKey</code>, <code>distinct</code>, <code>ORDER BY</code> — but those records are scattered across machines, the framework must physically move them so each key lands on one machine. That movement is the shuffle.</p>
         <p>Mechanically: each map task partitions its output by <code>hash(key) % numPartitions</code> and writes one file per target partition to local disk; each reduce task then <i>fetches</i> its partition's files from every map task across the network, and merges them. Watch keys route to their owning partition, then turn on a map-side combine:</p>
         <div class="sim" id="sim-shuffle"></div>
@@ -734,7 +735,7 @@ details.qa[open]>summary::before{transform:rotate(90deg)}
       </section>
 
       <section class="sec" id="s4-4" data-num="4.4" data-t="Batch, streaming, and exactly-once">
-        <p class="sec-num">3.4</p><h2>Batch, streaming, and exactly-once</h2>
+        <p class="sec-num">4.4</p><h2>Batch, streaming, and exactly-once</h2>
         <p><b>Batch</b> processes a bounded dataset — all of yesterday's orders — and finishes. <b>Streaming</b> processes an unbounded flow — orders as they happen — and never finishes. The deep difference isn't speed; it's that a stream has no "end," so anything that needs completeness (a daily total, a join across sources) has to reckon with <b>time</b> and <b>lateness</b> explicitly.</p>
         <p>That forces three concepts interviewers probe. <b>Event time vs processing time</b>: when the event <i>happened</i> vs when your system <i>saw</i> it — they differ because of network delays and retries, and correct aggregations key off event time. <b>Windowing</b>: since the stream never ends, you aggregate over finite windows (tumbling, sliding, session). <b>Watermarks</b>: a moving threshold that says "I'll wait this long for late data, then finalize the window and drop stragglers" — the knob that trades latency against completeness. (§7.3 makes these concrete in Structured Streaming.)</p>
         <p>Then the delivery-guarantee question, asked in nearly every streaming interview. <b>At-most-once</b>: may lose data, never duplicates. <b>At-least-once</b>: never loses data, may duplicate (retries). <b>Exactly-once</b>: the effect is as if each record were processed once — the gold standard, achieved not by magic but by <b>idempotent writes</b> or <b>transactional sinks</b> plus checkpointed offsets, so a replay after failure doesn't double-count. The honest framing: true end-to-end exactly-once requires cooperation from the sink; absent that, you engineer <i>effectively</i>-once with idempotency and dedup keys.</p>
@@ -749,10 +750,10 @@ details.qa[open]>summary::before{transform:rotate(90deg)}
   <div class="wrap"><div class="ch-grid">
     <aside class="side"></aside>
     <article class="art">
-      <p class="crumb"><a href="#/">Contents</a> · Chapter 4 · The Spark execution engine</p>
+      <p class="crumb"><a href="#/">Contents</a> · Chapter 5 · The Spark execution engine</p>
 
       <section class="sec" id="s5-1" data-num="5.1" data-t="Cluster anatomy">
-        <p class="sec-num">4.1</p><h2>Cluster anatomy</h2>
+        <p class="sec-num">5.1</p><h2>Cluster anatomy</h2>
         <p>Before tuning Spark you have to see it. A Spark application is one <b>driver</b> coordinating many <b>executors</b>, and almost every performance question maps to some piece of this picture. Click through it:</p>
         <div class="sim" id="sim-cluster"></div>
         <p class="figcap"><b>Figure 4.1.</b> One driver, several executors, each with cores and a fixed memory pool. Tasks are the unit of work; a core runs one task at a time. Illustrative configuration.</p>
@@ -761,7 +762,7 @@ details.qa[open]>summary::before{transform:rotate(90deg)}
       </section>
 
       <section class="sec" id="s5-2" data-num="5.2" data-t="Lazy evaluation">
-        <p class="sec-num">4.2</p><h2>Lazy evaluation</h2>
+        <p class="sec-num">5.2</p><h2>Lazy evaluation</h2>
         <p>Spark does nothing when you call <code>filter</code>, <code>select</code>, or <code>join</code>. Those are <b>transformations</b> — they just extend the DAG, the recipe. Only an <b>action</b> — <code>count</code>, <code>collect</code>, <code>write</code>, <code>show</code> — forces Spark to actually plan and run. Step through what happens when the action finally fires:</p>
         <div class="sim" id="sim-lazy"></div>
         <p class="figcap"><b>Figure 4.2.</b> Transformations queue lazily; the action triggers Catalyst to parse, analyze, optimize, and pick a physical plan, which is then split into stages and run. Illustrative.</p>
@@ -771,7 +772,7 @@ details.qa[open]>summary::before{transform:rotate(90deg)}
       </section>
 
       <section class="sec" id="s5-3" data-num="5.3" data-t="Jobs, stages, and tasks">
-        <p class="sec-num">4.3</p><h2>Jobs, stages, and tasks</h2>
+        <p class="sec-num">5.3</p><h2>Jobs, stages, and tasks</h2>
         <p>When an action runs, Spark builds a three-level hierarchy that you'll read constantly in the Spark UI. Understanding it is what turns "the job is slow" into "stage 3 is skewed." Build a pipeline and watch it split:</p>
         <div class="sim" id="sim-dag"></div>
         <p class="figcap"><b>Figure 4.3.</b> A pipeline splits into stages at every shuffle boundary. Broadcasting the small side of the join removes its shuffle — and therefore a whole stage. Illustrative.</p>
@@ -780,7 +781,7 @@ details.qa[open]>summary::before{transform:rotate(90deg)}
       </section>
 
       <section class="sec" id="s5-4" data-num="5.4" data-t="Memory, and why jobs spill">
-        <p class="sec-num">4.4</p><h2>Memory, and why jobs spill</h2>
+        <p class="sec-num">5.4</p><h2>Memory, and why jobs spill</h2>
         <p>An executor's memory is not one bucket. Spark's <b>unified memory</b> splits the usable heap between <b>execution memory</b> (for shuffles, joins, sorts, aggregations — the scratch space of computation) and <b>storage memory</b> (for cached/persisted data). They share a pool and borrow from each other: cached blocks can be evicted to make room for a big shuffle, but active execution memory can't be evicted mid-task. There's also a slice of <b>user memory</b> for your objects and a fixed <b>reserved</b> sliver.</p>
         <p>When a task needs more execution memory than it can get, it doesn't (usually) crash — it <b>spills</b> to disk: sorts and hash tables overflow to local disk and are merged back, trading speed for survival. A little spill is fine; heavy spill is a top cause of slow jobs, and it almost always traces back to <b>partitions that are too large</b> (so each task's working set doesn't fit) or <b>skew</b> (so one task's does not while others' do). The fix is more, smaller, even partitions — which is exactly chapter 5.</p>
         <p>An <b>OutOfMemoryError</b> is the harder failure, and interviewers ask where it strikes. On the <b>executor</b>: a single partition too big to process, a giant <code>groupByKey</code>, or a skewed key — fix with more partitions or skew handling. On the <b>driver</b>: <code>collect()</code> pulling a large result back, or a broadcast bigger than the driver can build — fix by not collecting, or lowering the broadcast threshold. Naming <i>which</i> side OOM'd and why is the difference between guessing and diagnosing.</p>
@@ -788,7 +789,7 @@ details.qa[open]>summary::before{transform:rotate(90deg)}
       </section>
 
       <section class="sec" id="s5-5" data-num="5.5" data-t="Adaptive Query Execution">
-        <p class="sec-num">4.5</p><h2>Adaptive Query Execution</h2>
+        <p class="sec-num">5.5</p><h2>Adaptive Query Execution</h2>
         <p>For years Spark planned a query once, up front, using estimates — and estimates about data it hadn't read yet were often wrong, which is how you got 200 shuffle partitions on 50MB of data. <b>Adaptive Query Execution (AQE)</b>, on by default since Spark 3.2, fixes this by <b>re-planning at runtime</b>: at each shuffle boundary it looks at the <i>actual</i> statistics of the data just produced and adjusts the rest of the plan. It's the highest-leverage "free" performance feature in modern Spark, and a very common interview topic.</p>
         <p>Three things AQE does, all worth naming. <b>Coalesce shuffle partitions</b>: it merges the default 200 partitions down to a sensible number based on real output size, curing the small-partition problem automatically. <b>Switch join strategies</b>: if a table turns out to be small enough after filtering, AQE flips a planned sort-merge join into a broadcast join at runtime. <b>Handle skew</b>: it detects oversized partitions and splits them into smaller sub-partitions so one straggler task doesn't hold up the stage (§6.3).</p>
         <p>The senior framing is that AQE doesn't make tuning obsolete — it makes the <i>common</i> cases self-correcting, so your attention goes to the structural choices it can't make for you: the data layout, the partitioning key, whether a join should be a broadcast by design. "AQE will coalesce my partitions and catch runtime skew, so I focus on the things it can't see" is exactly the balance an interviewer wants to hear.</p>
@@ -803,10 +804,10 @@ details.qa[open]>summary::before{transform:rotate(90deg)}
   <div class="wrap"><div class="ch-grid">
     <aside class="side"></aside>
     <article class="art">
-      <p class="crumb"><a href="#/">Contents</a> · Chapter 5 · Spark performance</p>
+      <p class="crumb"><a href="#/">Contents</a> · Chapter 6 · Spark performance</p>
 
       <section class="sec" id="s6-1" data-num="6.1" data-t="Partitions and parallelism">
-        <p class="sec-num">5.1</p><h2>Partitions and parallelism</h2>
+        <p class="sec-num">6.1</p><h2>Partitions and parallelism</h2>
         <p>Partition count is the master dial of Spark performance, because a partition is a task and a task needs a core (§5.1). Get it wrong in either direction and you pay. Move the sliders and read the verdict:</p>
         <div class="sim" id="sim-parts"></div>
         <p class="figcap"><b>Figure 5.1.</b> Shuffle data divided by partition count gives per-task size; that size against cluster cores gives the number of waves. The target is even tasks of roughly 128–200MB. Illustrative.</p>
@@ -816,7 +817,7 @@ details.qa[open]>summary::before{transform:rotate(90deg)}
       </section>
 
       <section class="sec" id="s6-2" data-num="6.2" data-t="Choosing a join">
-        <p class="sec-num">5.2</p><h2>Choosing a join</h2>
+        <p class="sec-num">6.2</p><h2>Choosing a join</h2>
         <p>Joins are where shuffles are born and where the biggest wins hide. Spark picks a physical strategy based on the sizes of the two sides; understanding the choice lets you force the right one. Set the table sizes and see what Spark does:</p>
         <div class="sim" id="sim-join"></div>
         <p class="figcap"><b>Figure 5.2.</b> When one side is under the broadcast threshold, Spark ships it to every executor and skips the shuffle entirely. When both sides are large, it shuffles both and sort-merges. Illustrative.</p>
@@ -826,7 +827,7 @@ details.qa[open]>summary::before{transform:rotate(90deg)}
       </section>
 
       <section class="sec" id="s6-3" data-num="6.3" data-t="Data skew">
-        <p class="sec-num">5.3</p><h2>Data skew</h2>
+        <p class="sec-num">6.3</p><h2>Data skew</h2>
         <p>Parallelism only helps if the work is even. <b>Skew</b> is when one key (or a few) has vastly more rows than the rest, so after the shuffle one task gets a mountain and the others get molehills — and the whole stage waits for that one straggler. It's the most common cause of "99% of tasks finished in seconds, the last one ran for an hour." Crank the skew and apply the fix:</p>
         <div class="sim" id="sim-skew"></div>
         <p class="figcap"><b>Figure 5.3.</b> A single hot key overwhelms one task. Salting spreads that key across many tasks by appending a random suffix, so the load evens out and the stage finishes in the time of the slowest <i>balanced</i> task. Illustrative.</p>
@@ -835,14 +836,14 @@ details.qa[open]>summary::before{transform:rotate(90deg)}
       </section>
 
       <section class="sec" id="s6-4" data-num="6.4" data-t="Caching and persistence">
-        <p class="sec-num">5.4</p><h2>Caching and persistence</h2>
+        <p class="sec-num">6.4</p><h2>Caching and persistence</h2>
         <p>Because every action re-runs the full lineage (§5.2), a DataFrame used more than once is recomputed each time — reading the source and redoing every transformation. <b>Caching</b> breaks that: <code>cache()</code> or <code>persist()</code> materializes the DataFrame after its first computation so later actions reuse it. The rule is simple and interviewers want it stated as a rule: <b>cache only what you reuse</b> — an iterative algorithm, a cleaned DataFrame feeding several outputs, a lookup hit repeatedly. Caching something used once wastes memory you could have given to execution.</p>
         <p><code>cache()</code> is just <code>persist(MEMORY_AND_DISK)</code> — the sensible default that keeps blocks in memory and spills the overflow to disk rather than recomputing. Other storage levels trade memory for CPU or resilience: <code>MEMORY_ONLY</code> (fastest, but recomputes what doesn't fit), <code>DISK_ONLY</code>, and <code>_SER</code> variants that store serialized bytes (smaller, more CPU to read). And caching is itself lazy — the data isn't stored until the <i>next</i> action materializes it. Call <code>unpersist()</code> when you're done to free the memory for the rest of the job.</p>
         <div class="note"><p class="nt">Cache vs checkpoint</p><p>A subtle senior distinction: <b>caching</b> keeps the data <i>and</i> the lineage (if a cached block is lost, Spark recomputes it from the DAG), so it's for speed. <b>Checkpointing</b> writes to reliable storage and <i>truncates</i> the lineage — useful in very long iterative jobs where the DAG itself grows unwieldy or where you want to survive executor loss without recomputation. Most tuning is caching; checkpointing is the rarer, heavier tool.</p></div>
       </section>
 
       <section class="sec" id="s6-5" data-num="6.5" data-t="UDFs, Arrow, and a tuning checklist">
-        <p class="sec-num">5.5</p><h2>UDFs, Arrow, and a tuning checklist</h2>
+        <p class="sec-num">6.5</p><h2>UDFs, Arrow, and a tuning checklist</h2>
         <p>One PySpark-specific trap is asked in nearly every interview: <b>Python UDFs are slow</b>, and you should know exactly why. A plain Python UDF forces Spark to serialize each row out of the JVM, ship it to a Python worker process, run your function, and serialize the result back — row by row — and it's a <b>black box to Catalyst</b>, so no pushdown or optimization crosses it. The order of preference is therefore: <b>built-in Spark SQL functions</b> first (they run in the JVM and optimize), then <b>pandas UDFs (vectorized, Arrow-based)</b> which move data in columnar Arrow batches and run on whole vectors — often an order of magnitude faster than a row-at-a-time UDF — and only a plain Python UDF as the last resort for logic that truly can't be expressed otherwise.</p>
         <p>That single rule — <i>avoid Python UDFs; prefer native functions, then vectorized pandas UDFs</i> — earns real credit, because it shows you understand the JVM/Python boundary that defines PySpark's performance. Everything else assembles into a checklist you can recite when asked "how do you tune a Spark job?":</p>
         <ul>
@@ -864,10 +865,10 @@ details.qa[open]>summary::before{transform:rotate(90deg)}
   <div class="wrap"><div class="ch-grid">
     <aside class="side"></aside>
     <article class="art">
-      <p class="crumb"><a href="#/">Contents</a> · Chapter 6 · The PySpark coding round</p>
+      <p class="crumb"><a href="#/">Contents</a> · Chapter 7 · The PySpark coding round</p>
 
       <section class="sec" id="s7-1" data-num="7.1" data-t="Warm-up drills">
-        <p class="sec-num">6.1</p><h2>Warm-up drills</h2>
+        <p class="sec-num">7.1</p><h2>Warm-up drills</h2>
         <p>The PySpark round rewards fluency with the DataFrame API and the reflex to <i>explain the physical plan you just caused</i>. Two warm-ups appear constantly; they're the SQL patterns of §1.3 in DataFrame form.</p>
         <p><b>Deduplicate, keeping the latest.</b> Window by key, order by recency, keep row 1:</p>
         <pre><code><span class="k">from</span> pyspark.sql <span class="k">import</span> Window, functions <span class="k">as</span> F
@@ -887,7 +888,7 @@ top3 = (products
       </section>
 
       <section class="sec" id="s7-2" data-num="7.2" data-t="Harder drills">
-        <p class="sec-num">6.2</p><h2>Harder drills: sessionization</h2>
+        <p class="sec-num">7.2</p><h2>Harder drills: sessionization</h2>
         <p><b>Sessionization</b> is the classic "harder" PySpark problem: group a user's events into sessions, where a new session starts after a gap of inactivity (say 30 minutes). It tests windows, <code>lag</code>, a cumulative sum, and whether you can compose them — exactly the skills a real pipeline needs.</p>
         <p>The trick is a two-window pattern. First, mark where each session <i>begins</i> by comparing each event to the previous one with <code>lag</code>; then take a running sum of those markers to assign a session id:</p>
         <pre><code><span class="k">from</span> pyspark.sql <span class="k">import</span> Window, functions <span class="k">as</span> F
@@ -910,7 +911,7 @@ sessions = (events
       </section>
 
       <section class="sec" id="s7-3" data-num="7.3" data-t="Structured Streaming">
-        <p class="sec-num">6.3</p><h2>Structured Streaming</h2>
+        <p class="sec-num">7.3</p><h2>Structured Streaming</h2>
         <p>Spark's streaming API treats a stream as an <b>unbounded table</b> that grows, and you write almost the same DataFrame code as batch — the engine incrementalizes it. The interview-relevant pieces are the ones unique to unbounded data: <b>watermarks</b>, <b>windows</b>, and <b>output modes</b> (the §4.4 concepts, made concrete).</p>
         <pre><code>counts = (stream
     .withWatermark(<span class="s">"event_ts"</span>, <span class="s">"10 minutes"</span>)        <span class="c"># wait up to 10 min for late data</span>
@@ -928,7 +929,7 @@ query = (counts.writeStream
       </section>
 
       <section class="sec" id="s7-4" data-num="7.4" data-t="&quot;Optimize this job&quot;">
-        <p class="sec-num">6.4</p><h2>"Optimize this job"</h2>
+        <p class="sec-num">7.4</p><h2>"Optimize this job"</h2>
         <p>A staple: they show you a working-but-slow script and ask you to make it faster. The skill is diagnosing along §6.5's axes rather than randomly changing flags. Here's the "before" and the reasoning:</p>
         <pre><code><span class="c"># BEFORE — correct, but slow</span>
 big = spark.read.parquet(<span class="s">"s3://events/"</span>)                 <span class="c"># 2 TB</span>
@@ -1005,14 +1006,14 @@ res.show()</code></pre>
   </div></div>
 </main>
 
-<main class="page" id="page-ch9" data-ch="9" data-title="Snowflake &amp; SnapLogic">
+<main class="page" id="page-ch9" data-ch="9" data-title="Snowflake &amp; the cloud stack">
   <div class="wrap"><div class="ch-grid">
     <aside class="side"></aside>
     <article class="art">
-      <p class="crumb"><a href="#/">Contents</a> · Chapter 7 · Snowflake &amp; SnapLogic</p>
+      <p class="crumb"><a href="#/">Contents</a> · Chapter 9 · Snowflake &amp; the cloud stack</p>
 
       <section class="sec" id="s9-1" data-num="9.1" data-t="Snowflake architecture">
-        <p class="sec-num">7.1</p><h2>Snowflake architecture</h2>
+        <p class="sec-num">9.1</p><h2>Snowflake architecture</h2>
         <p>Snowflake's whole design follows from one decision: <b>separate storage from compute</b>. Data lives once in cloud object storage; independent compute clusters (<b>virtual warehouses</b>) read it without owning it. That's why many teams can query the same data at once without fighting for resources, and why you scale compute up for a heavy job and back down without touching the data. Three layers: <b>storage</b> (the data), <b>compute</b> (warehouses), and a <b>cloud services</b> layer (the brain — metadata, query planning, security, transactions).</p>
         <p>Underneath, Snowflake stores tables as immutable <b>micro-partitions</b> — small (~50–500MB uncompressed) columnar chunks, created automatically, each carrying metadata about the range of values it holds. Queries get fast through <b>pruning</b>: the services layer reads the min/max metadata and skips every micro-partition that can't contain matching rows — the same idea as Parquet/Iceberg stats pruning, done automatically. How well it prunes depends on <b>clustering</b> — how well-sorted the data is on your filter columns. Toggle clustering and watch pruning change:</p>
         <div class="sim" id="sim-micro"></div>
@@ -1021,7 +1022,7 @@ res.show()</code></pre>
       </section>
 
       <section class="sec" id="s9-2" data-num="9.2" data-t="Warehouses and cost">
-        <p class="sec-num">7.2</p><h2>Warehouses and cost</h2>
+        <p class="sec-num">9.2</p><h2>Warehouses and cost</h2>
         <p>Snowflake bills <b>credits per second</b> that a warehouse runs, and the size sets the burn rate: each T-shirt size <b>doubles</b> the compute and the credit rate (XS = 1 credit/hr, S = 2, M = 4, L = 8, and up). This makes cost reasoning delightfully concrete — and interviewers ask whether you'll scale <i>up</i> or <i>out</i>. Explore it:</p>
         <div class="sim" id="sim-wh"></div>
         <p class="figcap"><b>Figure 7.2.</b> Doubling warehouse size doubles the credit rate but only speeds up the parallelizable part of the work — so the cost of a single query is roughly flat until the serial fraction dominates, where bigger stops helping. Illustrative.</p>
@@ -1030,18 +1031,30 @@ res.show()</code></pre>
       </section>
 
       <section class="sec" id="s9-3" data-num="9.3" data-t="Time travel, clones, streams &amp; tasks">
-        <p class="sec-num">7.3</p><h2>Time travel, clones, streams &amp; tasks</h2>
+        <p class="sec-num">9.3</p><h2>Time travel, clones, streams &amp; tasks</h2>
         <p>Four Snowflake features come up because they solve real pipeline problems. <b>Time Travel</b> queries a table as it was up to N days ago (<code>AT (OFFSET =&gt; -3600)</code> or a timestamp) — undo a bad load, audit a change, recover a dropped table. It's distinct from <b>Fail-safe</b>, a non-configurable 7-day Snowflake-managed recovery window <i>after</i> Time Travel expires; a favorite gotcha is knowing you can self-serve Time Travel but must call support for Fail-safe.</p>
         <p><b>Zero-copy cloning</b> (<code>CREATE TABLE dev CLONE prod</code>) makes an instant, storage-free copy — it only duplicates metadata pointers to the existing micro-partitions, and new storage is used only as the clone diverges. This is how teams spin up full-size dev/test environments from production in seconds without paying for a second copy; explaining <i>why</i> it's free (shared immutable micro-partitions, copy-on-write) is the senior beat.</p>
         <p><b>Streams</b> and <b>Tasks</b> are Snowflake's native CDC-and-schedule pair. A <b>Stream</b> tracks row-level changes to a table (a change-data-capture cursor: what's been inserted/updated/deleted since you last read it); a <b>Task</b> runs SQL on a schedule or dependency. Together — a Task that consumes a Stream and <code>MERGE</code>s changes downstream — they build incremental pipelines entirely inside Snowflake, no external orchestrator required. Pair that with <b>Snowpipe</b> (continuous micro-batch file ingestion) and you can describe an end-to-end near-real-time load without leaving the platform.</p>
       </section>
 
-      <section class="sec" id="s9-4" data-num="9.4" data-t="SnapLogic in practice">
-        <p class="sec-num">7.4</p><h2>SnapLogic in practice</h2>
-        <p>SnapLogic is a low-code integration platform (iPaaS) — you build <b>pipelines</b> by wiring together <b>Snaps</b> (pre-built connectors and transforms) on a canvas rather than writing all the glue code. In an interview it stands in for "can you integrate systems and reason about an iPaaS," so the vocabulary and the trade-offs matter more than clicking through the UI.</p>
-        <p>The concepts worth naming: a <b>pipeline</b> is a data flow from source Snaps through transform Snaps to target Snaps; the <b>Snaplex</b> is the execution engine (cloud-hosted <b>Cloudplex</b>, or a <b>Groundplex</b> you run inside your own network to reach on-prem systems securely). Pipelines run in two modes — <b>Triggered/scheduled</b> (spin up, run, tear down; right for batch and moderate volume) and <b>Ultra</b> (always-on, low-latency, for near-real-time request/response). And <b>error-view</b> handling is a distinguishing detail: each Snap can route failed records to a separate error path instead of killing the pipeline, so bad rows are captured and quarantined while good ones flow — the low-code echo of "handle partial failure" from §4.1.</p>
-        <p>The senior framing when comparing SnapLogic to hand-coded Spark/Airflow: low-code buys <b>speed of delivery and accessibility</b> (analysts can build integrations, hundreds of connectors out of the box) at the cost of <b>fine-grained control and version-control ergonomics</b>. It shines for enterprise app-to-app and SaaS integration; heavy custom transformation at massive scale still leans on Spark. Mentioning <b>parameterized/reusable pipelines</b> and routing errors to error views signals you've actually operated it, not just seen the logo.</p>
-        <div class="note iq"><p class="nt">Interview angle</p><p>"When would you use a low-code tool like SnapLogic instead of writing Spark?" — when the job is integration (moving/merging data across many SaaS and enterprise systems) rather than heavy computation, when time-to-delivery and letting less-code-heavy teammates contribute matter, and when the connector catalog saves you writing brittle glue. Flip it for large-scale custom transformation, where Spark's control and testability win. Naming the trade-off — delivery speed vs granular control — is the whole answer.</p></div>
+      <section class="sec" id="s9-4" data-num="9.4" data-t="Managed data integration">
+        <p class="sec-num">9.4</p><h2>Managed data integration</h2>
+        <p>Most enterprises — and nearly every GCC — run at least one <b>managed integration platform</b> alongside their code: a visual environment where pipelines are DAGs of pre-built connectors (pull from a SaaS API, map fields, land in the warehouse), scheduled or triggered, with retries and error views out of the box. The vendors rotate; the pattern doesn't, and in an interview you should talk about the pattern, not the product.</p>
+        <p><b>Where low-code integration genuinely wins:</b> many SaaS and database sources with standard extract-and-load needs, mixed-skill teams, and connector maintenance you'd rather outsource — the vendor absorbs every upstream API change so your team doesn't. Time-to-first-pipeline is hours, not sprints, and for the long tail of "get Salesforce into the warehouse daily" that's the right trade.</p>
+        <p><b>Where it strains:</b> complex transformation logic trapped in a GUI instead of version-controlled code, weak diff/review/test workflows compared to a git repo, per-connector or per-row pricing that scales badly, and debugging that ends at the vendor's black box. The mature pattern is a split: managed connectors for <i>extraction and loading</i>, code (SQL/dbt/Spark) for <i>transformation</i> — which is exactly the ELT boundary from §3.1.</p>
+        <p>Whatever the tool, the operational questions are identical to hand-rolled pipelines, and interviewers use them to check you ran the thing rather than clicked around it: how does it track <b>incremental state</b> (and what happens when you reset it), what happens to <b>failed records</b> (retry, dead-letter, or silent drop), is a rerun <b>idempotent</b> (§3.3), and how do schema changes surface (§3.4)?</p>
+        <div class="note iq"><p class="nt">Interview angle</p><p>"You've used a low-code integration tool — why should we hire you to write pipelines in code?" Answer with the split: connectors bought you speed on extraction, while the logic that mattered lived in versioned, tested SQL — and name a moment you migrated a pipeline from GUI to code when it outgrew the tool. That story lands as judgement, not tool loyalty.</p></div>
+      </section>
+
+      <section class="sec" id="s9-5" data-num="9.5" data-t="The cloud stack: AWS, Azure, GCP">
+        <p class="sec-num">9.5</p><h2>The cloud stack: AWS, Azure, GCP</h2>
+        <p>Indian loops are cloud-specific in a predictable way: <b>AWS dominates product companies</b> and Amazon itself asks its own stack by name; <b>Azure dominates GCCs and banks</b>; GCP shows up at startups and analytics-heavy shops. You need one stack in production depth and the other two at mapping level — because the services are the same six ideas wearing different names.</p>
+        <p><b>The lake is object storage.</b> S3 (ADLS Gen2, GCS) plus Parquet plus a table format is the lake; everything else reads from it. The interview questions here are partitioning layout, the small-files problem, and lifecycle tiering for cost.</p>
+        <p><b>Two ways to run Spark.</b> Glue is serverless Spark with a built-in catalog — zero cluster management, less control, priced per DPU-hour. EMR is the managed cluster — full control over versions, instance types, and spot usage, more to operate. The Amazon-flavored question is exactly this trade-off: Glue for scheduled ETL a small team owns; EMR when you need custom configs, long-running clusters, or cost engineering at scale. (Azure: Databricks or Synapse Spark. GCP: Dataproc, or skip Spark and let BigQuery do the work.)</p>
+        <p><b>Two ways to run SQL.</b> Athena queries S3 in place — serverless, per-TB-scanned, perfect for ad-hoc reads on the lake; costs explode if you scan unpartitioned raw data, which is the gotcha they probe. Redshift is the provisioned warehouse for concurrent BI: know <b>distribution keys</b> (collocate join keys to avoid data moving between nodes) and <b>sort keys</b> (skip blocks on range filters), because "how do you make this Redshift join fast" is a standard Amazon India question. (Azure: Synapse. GCP: BigQuery, where the same ideas surface as partitioning and clustering.)</p>
+        <p><b>Streams and orchestration.</b> Kinesis is the managed Kafka-shaped log (shards ≈ partitions, same ordering-per-shard and consumer-scaling logic from §8.1); MSK is literal managed Kafka when you need the ecosystem. Airflow appears as managed MWAA (Azure: ADF for movement + orchestration; GCP: Composer). Lambda glues events together but has a hard 15-minute limit — proposing it for heavy transforms is a known red flag; it's for triggers, not for Spark's job.</p>
+        <div class="note"><p class="nt">The mapping trick</p><p>Answer in problems first, services second: "we need a log, a processor, a lake, a warehouse, an orchestrator" — then name the vendor's word for each. That works in an AWS loop, an Azure GCC loop, and a GCP loop without re-learning anything. The full three-cloud mapping table is in the <a href="#/sheets">cheat sheets</a>.</p></div>
+        <div class="note iq"><p class="nt">Interview angle</p><p>Amazon interviewers ask their stack by name, and honesty beats bluffing everywhere: "I've run Glue and Redshift in production; Kinesis I know at the architecture level" survives follow-ups, while claiming all of them invites the follow-up that ends the loop. If your production depth is Azure (common in GCC roles), say so and map fluently — that's a pass.</p></div>
         <div class="pn"></div>
       </section>
     </article>
@@ -1053,10 +1066,10 @@ res.show()</code></pre>
   <div class="wrap"><div class="ch-grid">
     <aside class="side"></aside>
     <article class="art">
-      <p class="crumb"><a href="#/">Contents</a> · Chapter 8 · DevOps &amp; MLOps</p>
+      <p class="crumb"><a href="#/">Contents</a> · Chapter 10 · DevOps &amp; MLOps</p>
 
       <section class="sec" id="s10-1" data-num="10.1" data-t="CI/CD for data">
-        <p class="sec-num">8.1</p><h2>CI/CD for data</h2>
+        <p class="sec-num">10.1</p><h2>CI/CD for data</h2>
         <p>Data pipelines are software, and the platform round checks whether you treat them that way. <b>CI/CD for data</b> is the same idea as for any code — automate test and deploy — with data-specific tests bolted on. A healthy pipeline lives in version control, gets tested on every change, and deploys through environments (dev → staging → prod) without hand-editing anything in production.</p>
         <p>What makes it <i>data</i> CI/CD is the extra test layer. Beyond unit tests on transformation logic (run Spark locally on tiny fixtures and assert the output), you add <b>data-quality tests</b> — schema/contract checks (did an upstream column change type?), row-count and null-rate assertions, referential and uniqueness checks — as gates in the pipeline itself, so bad data fails the run instead of silently corrupting downstream tables. Frameworks like Great Expectations or dbt tests formalize this, but the concept is what's tested.</p>
         <p>The other data-specific piece is <b>environment isolation without copying petabytes</b>: dev and staging need production-like data, which is exactly what Snowflake zero-copy clones (§9.3) or Iceberg branch/tag features provide instantly and cheaply. And <b>secrets</b> — database creds, API keys, cloud tokens — never live in code or config; they come from a secrets manager (Vault, cloud KMS, the orchestrator's secret store) injected at runtime. "Creds in a vault, referenced by name, rotated centrally" is the one-line answer to the secrets question.</p>
@@ -1064,7 +1077,7 @@ res.show()</code></pre>
       </section>
 
       <section class="sec" id="s10-2" data-num="10.2" data-t="Orchestration: idempotency &amp; backfills">
-        <p class="sec-num">8.2</p><h2>Orchestration: idempotency &amp; backfills</h2>
+        <p class="sec-num">10.2</p><h2>Orchestration: idempotency &amp; backfills</h2>
         <p>An orchestrator (Airflow, Dagster, native schedulers) runs your pipeline as a <b>DAG of tasks</b> with dependencies, schedules, and retries. Two concepts dominate the interview because they're what separates a pipeline that recovers from one that corrupts: <b>idempotency</b> and <b>backfills</b>. Fail a day and watch what happens:</p>
         <div class="sim" id="sim-orch"></div>
         <p class="figcap"><b>Figure 8.2.</b> A daily pipeline where one day fails. Downstream days block until it's fixed; a backfill re-runs the failed day (and dependents), and because the tasks are idempotent, the rerun overwrites cleanly instead of double-writing. Illustrative.</p>
@@ -1074,7 +1087,7 @@ res.show()</code></pre>
       </section>
 
       <section class="sec" id="s10-3" data-num="10.3" data-t="MLOps: the pipeline past the model">
-        <p class="sec-num">8.3</p><h2>MLOps: the pipeline past the model</h2>
+        <p class="sec-num">10.3</p><h2>MLOps: the pipeline past the model</h2>
         <p>For a data engineer, MLOps is mostly <b>data engineering with a model on the end</b> — the questions are about the pipeline and its failure modes, not the math. The lifecycle to know: <b>features</b> → <b>training</b> → <b>a registry</b> → <b>serving</b> → <b>monitoring</b>, with feedback loops. Your job is the plumbing that makes it reproducible and reliable.</p>
         <p>The concept interviewers reach for first is <b>training-serving skew</b>: the model was trained on features computed one way (a batch Spark job over historical data) but served features computed <i>another</i> way (a real-time path), and the mismatch quietly wrecks accuracy in production. The canonical fix is a <b>feature store</b> — compute each feature once and serve the <i>same</i> values to both training (offline) and serving (online), guaranteeing consistency. Being able to name skew and give the feature-store fix is a strong signal in any ML-adjacent DE interview.</p>
         <p>The rest assembles quickly. A <b>model registry</b> versions trained models with their metadata and stage (staging/production), so you know exactly what's deployed and can roll back. <b>Drift monitoring</b> watches whether the live input distribution or the model's accuracy has moved away from training — because a model silently degrades as the world changes, and nothing errors; you have to look. And deployment safety mirrors software: <b>champion/challenger</b> or <b>canary</b> rollouts (send a slice of traffic to the new model, compare, promote if better) so a bad model doesn't take down predictions for everyone.</p>
@@ -1082,7 +1095,7 @@ res.show()</code></pre>
       </section>
 
       <section class="sec" id="s10-4" data-num="10.4" data-t="Observability and the 2 a.m. page">
-        <p class="sec-num">8.4</p><h2>Observability and the 2 a.m. page</h2>
+        <p class="sec-num">10.4</p><h2>Observability and the 2 a.m. page</h2>
         <p>The final round is often behavioral-technical: "tell me about a pipeline incident." What they're testing is whether you think about <b>data in production</b> — not just does the job run, but is the data <i>right</i>, <i>fresh</i>, and <i>trustworthy</i>. The vocabulary is <b>data observability</b>, usually framed as a few pillars: <b>freshness</b> (is the data up to date?), <b>volume</b> (did row counts suddenly drop or spike?), <b>schema</b> (did a column change or disappear?), <b>quality/distribution</b> (are values in range, null rates stable?), and <b>lineage</b> (if this table is wrong, what upstream caused it and what downstream is affected?).</p>
         <p>The senior instinct is that <b>a job succeeding is not the same as the data being correct</b> — the pipeline can run green while an upstream source silently sends half the rows. So you alert on the <i>data</i>, not just the task status: a freshness SLA breach, an anomalous row count, a null-rate spike, a schema change. And you frame incidents by <b>blast radius</b> — lineage tells you every downstream table and dashboard affected, so you can communicate impact and prioritize the fix.</p>
         <p>When you tell the incident story, use the arc that shows maturity: <b>detect</b> (an alert fired — ideally a data-quality alert, not an angry Slack from an analyst), <b>diagnose</b> (lineage traced it to an upstream schema change), <b>mitigate</b> (roll back with time travel / re-run the last good partition), <b>fix and prevent</b> (add the schema-contract test that would have caught it in CI). Detect → diagnose → mitigate → prevent, with a prevention that closes the loop, is the answer that ends the interview well — and it's the same "what happens when it breaks" thread from §0.1, all the way through.</p>
@@ -1131,7 +1144,7 @@ res.show()</code></pre>
 
       <section class="sec" id="s11-4" data-num="11.4" data-t="Worked example: clickstream analytics">
         <p class="sec-num">11.4</p><h2>Worked example: clickstream analytics</h2>
-        <p>"Design a pipeline that ingests click events and powers both a real-time dashboard and next-day reporting" is the most frequently reported prompt in the round, in ad-tech, streaming-media, and marketplace variants. Here's the shape of a strong answer.</p>
+        <p>"Design a pipeline that ingests click events and powers both a real-time dashboard and next-day reporting" is the most frequently reported prompt in the round. The Indian variants are the same problem in local clothing — live cricket-match concurrency at a streaming platform, UPI payment events at a fintech, a Big Billion Days order spike at a marketplace — same shape, with an even harsher peak-to-average ratio. Here's the shape of a strong answer.</p>
         <p><b>Requirements.</b> 2 billion events/day, ~1 KB each — so ~2 TB/day, ~23k events/sec average, call it 100k+ at peak. The dashboard needs freshness in seconds; the reporting tables need to be correct and stable, not fast. Retention: 90 days hot, years cold. That split — one consumer wants <i>fast</i>, one wants <i>right</i> — is the actual design problem, and naming it early is most of the answer.</p>
         <p><b>Ingest.</b> Producers write to a partitioned Kafka topic keyed by user id so per-user ordering holds (§8.1). The log is the buffer and the replay mechanism; everything downstream is a consumer of it.</p>
         <p><b>Two consumers, one source of truth.</b> A stream job maintains windowed aggregates for the dashboard — approximate is acceptable, latency is not — writing to an OLAP store. Separately, a sink writes raw events to the lake as Parquet partitioned by event date, and a batch job builds the corrected, deduplicated tables with a rolling reprocessing window for late arrivals (§3.5). The dashboard's numbers and the report's numbers will differ slightly during the day; say that out loud and explain that the batch table is the system of record.</p>
@@ -1186,8 +1199,8 @@ res.show()</code></pre>
         <p class="sec-num">12.4</p><h2>Your questions, and the offer</h2>
         <p>The questions you ask are scored, whether or not anyone says so. Generic ones ("what's the culture like?") are neutral at best. Questions that reveal you think like an owner do real work: <i>What breaks most often, and who gets paged? How do you know when a dataset is wrong — is there a check, or does someone notice? What's the split between building new pipelines and maintaining old ones? What does the data platform look like a year from now?</i></p>
         <p>They also serve you. A team that can't answer "how do you know when data is wrong" is a team where you'll spend your first year firefighting, and the interview is the last moment you can find that out cheaply.</p>
-        <p>On compensation: the spread between companies at the same level is larger than the spread between levels at one company, which makes <i>where</i> you interview a bigger lever than how you negotiate. Senior data engineer total comp at large tech clusters roughly in the $300–420k range in the US, with staff and above clearing $500k mostly on equity; the platform and AI-adjacent companies sit at the top of that band, and equity — not base — is what separates the tiers. Elsewhere the bands are much lower, so compare offers on total compensation with a clear-eyed view of how the equity is valued and vested.</p>
-        <p>Two practical notes. Give a range only after you understand the level you're being considered for, since the same title spans very different bands. And when you get the offer, the highest-leverage question isn't about money — it's which team you're joining, because in data engineering the difference between a mature platform and a broken one determines what your next two years actually look like.</p>
+        <p>On compensation, the Indian market has one dominant lever: <b>company type</b>. Product companies pay two to three times what services pay at the same experience, which means moving tiers moves comp more than any promotion or negotiation inside a tier. The 2026 shape, roughly: senior DEs in the broad market land ₹28–42L; product companies and GCCs run ₹18–45L; fintech pays a streaming premium; and FAANG-India plus the top product companies reach ₹45–80L+ on RSU-heavy packages. Decompose every offer into fixed, variable, and ESOP — CTC is a marketing number, and unlisted-company ESOPs deserve a hard discount. Full bands are on the <a href="#/companies">company playbooks</a> page.</p>
+        <p>Three practical notes. Give a range only after you understand the level, since the same title spans very different bands. Treat the <b>notice period</b> as part of the deal — 60–90 days is standard in India, buyouts exist, and asking for a joining bonus that covers the buyout is normal, not cheeky. And when you get the offer, the highest-leverage question isn't about money — it's which team you're joining, because the difference between a mature platform and a firefighting one determines what your next two years look like.</p>
         <div class="note iq"><p class="nt">Interview angle</p><p>Have two questions ready that only apply to <i>that</i> company — something from their engineering blog, their open-source stack, or a scale problem their product implies. It's the cheapest possible demonstration that you prepared, and interviewers remember it when they write feedback.</p></div>
         <div class="pn"></div>
       </section>
@@ -1200,7 +1213,7 @@ res.show()</code></pre>
   <div class="wrap">
     <p class="crumb"><a href="#/">Contents</a> · Company playbooks</p>
     <h1 class="big" style="font-size:clamp(30px,5vw,44px);margin:.1em 0 .3em">Company playbooks</h1>
-    <p class="lead">The loops differ more than the syllabus does. Same five domains everywhere — SQL, coding, modeling, pipeline design, behavioral — but each company weights them differently and each has one round that quietly does the filtering. Pick a company to see its shape, its distinctive round, and the trap candidates report falling into.</p>
+    <p class="lead">The Indian DE market splits into four tiers — FAANG-India, product companies and unicorns, GCCs, and services — and the loops differ more than the syllabus does. Same five domains everywhere: SQL, coding, modeling, pipeline design, behavioral. What changes is the weighting, the stack vocabulary (AWS at product companies, Azure at GCCs), and which round quietly does the filtering. Pick a company to see its shape, its distinctive round, and the trap candidates report falling into.</p>
     <div class="sim" id="sim-loops"></div>
 
     <p class="cs-h">What every loop shares</p>
@@ -1224,18 +1237,21 @@ res.show()</code></pre>
       <tr><td>Rigidity under pushback</td><td>Defending v1 after the requirement changes</td><td>"That changes things — I'd move the aggregation upstream"</td></tr>
       <tr><td>Vague behavioral stories</td><td>"We improved our monitoring"</td><td>A number, a decision, an alternative rejected</td></tr>
       <tr><td>Bluffing a stack</td><td>"I know all the major services"</td><td>"I've run BigQuery and Dataflow in production; Bigtable I've only read about"</td></tr>
+      <tr><td>Tickets, not ownership</td><td>"I worked on the ingestion module"</td><td>"The pipeline I owned end-to-end — and the incident I took at 2 a.m."</td></tr>
     </tbody></table></div>
 
-    <p class="cs-h">Compensation, roughly</p>
-    <p class="cs-sub">Public aggregator medians, US, 2026. Treat as orientation, not precision — bands move, and equity valuation does most of the work at the top.</p>
-    <div class="cs"><table><thead><tr><th>Level</th><th>Data engineer TC (large tech)</th><th>Note</th></tr></thead><tbody>
-      <tr><td>L3 · junior</td><td>~$130–155k</td><td>Base-heavy; equity small</td></tr>
-      <tr><td>L4 · mid</td><td>~$180–220k</td><td>Equity starts to matter</td></tr>
-      <tr><td>L5 · senior</td><td>~$280–320k</td><td>Reported band at Google, Meta, Netflix, Apple, Amazon, Stripe, Databricks</td></tr>
-      <tr><td>Senior, broader sample</td><td>~$300–420k</td><td>Across recent large-tech offers; staff and above clears $500k</td></tr>
-      <tr><td>Outside big tech</td><td>Substantially lower</td><td>A different market, not a worse one — compare on total comp</td></tr>
+    <p class="cs-h">Compensation in India, roughly</p>
+    <p class="cs-sub">Total compensation (CTC), INR lakhs per annum, 2026 public aggregators. Orientation, not precision — decompose any offer into fixed / variable / ESOP before comparing.</p>
+    <div class="cs"><table><thead><tr><th>Segment</th><th>Band (₹ LPA)</th><th>Note</th></tr></thead><tbody>
+      <tr><td>Entry (0–2 yrs), broad market</td><td>7–14</td><td>Top of band is product-company offers; services anchor the bottom</td></tr>
+      <tr><td>Mid (3–5 yrs), broad market</td><td>16–26</td><td>The fastest-doubling stretch — this is when to move</td></tr>
+      <tr><td>Senior (6+ yrs), broad market</td><td>28–42</td><td>Product employer + a premium skill takes the top quartile</td></tr>
+      <tr><td>Product companies &amp; GCCs</td><td>18–45</td><td>Walmart GT, Target, bank GCCs — Spark + cloud + design loops</td></tr>
+      <tr><td>Fintech (PhonePe, Razorpay, CRED)</td><td>16–40</td><td>Streaming-heavy stacks pay a 20–35% specialist premium</td></tr>
+      <tr><td>FAANG-India &amp; top product, senior</td><td>45–80+</td><td>RSU/ESOP-heavy; Flipkart DE median ≈ ₹28L with senior packages far above</td></tr>
+      <tr><td>IT services data practices</td><td>5–14</td><td>Volume entry point; product pays 2–3× at the same experience</td></tr>
     </tbody></table></div>
-    <p class="simnote" style="margin-top:14px">Two framing notes worth carrying into a negotiation. First, the spread <i>between</i> companies at one level now exceeds the spread between levels at one company — the platform and AI-adjacent firms (Databricks, Stripe) sit well above legacy big tech at senior grades, and Microsoft sits notably below. Second, published headline medians usually reflect software-engineering ladders; data engineering bands generally run below them at the same level. Verify against a live aggregator before you quote a number at anyone.</p>
+    <p class="simnote" style="margin-top:14px">Four things the band tables never say. <b>Company type is the dominant lever</b> — moving from services to product moves comp more than two promotions. <b>CTC is not in-hand</b>: ask for the fixed/variable/ESOP split, and discount unlisted-company ESOPs hard. <b>Bengaluru anchors the bands</b> (Hyderabad and Pune close behind); remote roles benchmark to the employer, not your city. And <b>the notice period is part of the negotiation</b> — 60–90 days is standard, buyouts exist, and a joining bonus that covers the buyout is a normal ask. Verify against a live aggregator before you quote a number at anyone.</p>
   </div>
 </main>
 
@@ -1259,6 +1275,48 @@ res.show()</code></pre>
       <details class="qa"><summary>Why can <code>NOT IN</code> return no rows unexpectedly?<span class="qtag">SQL</span></summary><div class="ans"><p>Because <code>NULL</code> breaks it: if the subquery inside <code>NOT IN</code> returns even one NULL, the whole predicate evaluates to <code>NULL</code> (never true) and you get an empty result. <code>NOT EXISTS</code> handles NULLs correctly and is the safer default. This is one of the most common silent-bug questions.</p></div></details>
       <details class="qa"><summary><code>ROW_NUMBER</code> vs <code>RANK</code> vs <code>DENSE_RANK</code>?<span class="qtag">SQL · windows</span></summary><div class="ans"><p>On a tie: <code>ROW_NUMBER</code> gives distinct numbers arbitrarily (1,2,3,4); <code>RANK</code> ties and skips (1,2,2,4); <code>DENSE_RANK</code> ties without skipping (1,2,2,3). Pick by intent — dedup uses <code>ROW_NUMBER</code>, "Nth distinct value" uses <code>DENSE_RANK</code>, competition-style ranking uses <code>RANK</code>.</p></div></details>
 
+      <p class="qgroup">SQL patterns</p>
+      <details class="qa"><summary>Longest streak of consecutive login days per user.<span class="qtag">gaps &amp; islands</span></summary><div class="ans"><p>The pattern with no keyword: <b>gaps and islands</b>. Dedupe to the real grain first (one row per user-day), number the rows, subtract the row number from the date — consecutive days yield a constant, and that constant is the streak id.</p><pre><code>WITH days AS (
+  SELECT DISTINCT user_id, CAST(login_at AS DATE) AS d
+  FROM logins
+), numbered AS (
+  SELECT user_id, d,
+         ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY d) AS rn
+  FROM days
+)
+SELECT user_id, MIN(d) AS start, MAX(d) AS finish, COUNT(*) AS len
+FROM numbered
+GROUP BY user_id, d - rn * INTERVAL '1 day'
+ORDER BY len DESC;</code></pre><p>Why it works: within a run, the date and the row number advance in lockstep, so their difference is constant; every gap breaks the constant. Senior touches: dedupe first (multiple logins per day wreck the trick), and ask whether ties at the max length should all be returned.</p></div></details>
+      <details class="qa"><summary>Top 3 products by revenue per category.<span class="qtag">top-N per group</span></summary><div class="ans"><p>Rank inside the partition, filter outside — a window result can only be filtered in an outer query (or with QUALIFY where supported).</p><pre><code>WITH ranked AS (
+  SELECT category, product_id, SUM(revenue) AS rev,
+         DENSE_RANK() OVER (PARTITION BY category
+                            ORDER BY SUM(revenue) DESC) AS rnk
+  FROM sales GROUP BY category, product_id
+)
+SELECT * FROM ranked WHERE rnk <= 3;</code></pre><p>The follow-up is always the ranking-function choice: ROW_NUMBER gives exactly N rows and breaks ties arbitrarily; RANK skips positions after ties; DENSE_RANK does not. Say which the business wants — "top 3 including ties" is DENSE_RANK — and you have answered the real question.</p></div></details>
+      <details class="qa"><summary>7-day rolling revenue per marketplace.<span class="qtag">window frames</span></summary><div class="ans"><pre><code>SELECT marketplace_id, dt, revenue,
+       SUM(revenue) OVER (PARTITION BY marketplace_id ORDER BY dt
+                          ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS rev_7d
+FROM daily_revenue;</code></pre><p>The trap is the frame: <b>ROWS counts rows, not days</b>. If dates can be missing, six preceding rows might span three weeks. The senior move is to say so unprompted and densify first — generate a date spine (calendar table or recursive CTE), left-join revenue onto it with COALESCE(revenue, 0), then apply the frame. Mentioning that RANGE frames on dates are engine-inconsistent is a bonus.</p></div></details>
+      <details class="qa"><summary>D1/D7 retention by signup cohort.<span class="qtag">retention</span></summary><div class="ans"><pre><code>SELECT u.signup_date,
+       COUNT(DISTINCT u.user_id) AS cohort,
+       COUNT(DISTINCT CASE WHEN e.d = u.signup_date + 1
+             THEN u.user_id END) * 1.0 / COUNT(DISTINCT u.user_id) AS d1,
+       COUNT(DISTINCT CASE WHEN e.d = u.signup_date + 7
+             THEN u.user_id END) * 1.0 / COUNT(DISTINCT u.user_id) AS d7
+FROM users u
+LEFT JOIN (SELECT DISTINCT user_id, CAST(event_ts AS DATE) AS d
+           FROM events) e ON e.user_id = u.user_id
+GROUP BY u.signup_date;</code></pre><p>Three things they listen for: LEFT JOIN so zero-retention cohorts still appear, DISTINCT on both sides so multi-event users count once, and a clarifying question about the definition — "returned on exactly day 1, or within 1 day?" — because that changes the predicate from = to BETWEEN.</p></div></details>
+      <details class="qa"><summary>Delete duplicate rows, keep one per email.<span class="qtag">dedup</span></summary><div class="ans"><pre><code>DELETE FROM users
+WHERE id NOT IN (
+  SELECT MIN(id) FROM users GROUP BY email
+);
+-- or, warehouse-style, rebuild instead of delete:
+CREATE OR REPLACE TABLE users AS
+SELECT * FROM users
+QUALIFY ROW_NUMBER() OVER (PARTITION BY email ORDER BY id) = 1;</code></pre><p>The interview is in the follow-ups: which row to keep is a business rule (lowest id? latest updated_at?), a warehouse rebuild is safer and faster than a row-by-row DELETE at scale, and preventing recurrence — a unique constraint or a MERGE-based load (§3.3) — is the answer that upgrades you from query-writer to pipeline owner.</p></div></details>
       <p class="qgroup">Data modeling</p>
       <details class="qa"><summary>What is the "grain" of a table and why declare it first?<span class="qtag">modeling</span></summary><div class="ans"><p>The grain is what one row means — "one row per order line," "one per user per day." Declaring it first is the highest-leverage modeling habit because keys, aggregations, and joins all follow from it, and mixing grains in one table is how double-counting bugs are born.</p></div></details>
       <details class="qa"><summary>A customer changes their address. How do you store it?<span class="qtag">modeling · SCD</span></summary><div class="ans"><p>An SCD question. If analytics needs point-in-time correctness (what region was this customer in when they bought), use <b>Type 2</b>: close the old row, insert a new version with <code>valid_from</code>/<code>valid_to</code>, and join facts to the version valid at event time. If only the current value matters, <b>Type 1</b> (overwrite) is fine and cheaper. Tie the choice to a query requirement.</p></div></details>
@@ -1290,6 +1348,42 @@ res.show()</code></pre>
       <details class="qa"><summary>What's wrong with <code>spark.sql.shuffle.partitions = 200</code>?<span class="qtag">Spark · perf</span></summary><div class="ans"><p>It's a fixed default regardless of data size. On 2TB of shuffle that's 10GB per task (spill/OOM); on 200MB it's a thousand trivial tasks (pure overhead). Set it so each task handles ~128–200MB, or rely on AQE to coalesce shuffle partitions automatically.</p></div></details>
       <details class="qa"><summary>Why are Python UDFs slow in PySpark?<span class="qtag">Spark · perf</span></summary><div class="ans"><p>A plain Python UDF serializes each row out of the JVM to a Python worker, runs your function, and serializes back — row by row — and it's a black box to Catalyst, so no pushdown crosses it. Prefer built-in Spark SQL functions (run in the JVM, optimize), then vectorized pandas/Arrow UDFs (columnar batches, often 10× faster), and plain Python UDFs only as a last resort.</p></div></details>
 
+      <p class="qgroup">PySpark coding round</p>
+      <details class="qa"><summary>Keep only the latest record per key.<span class="qtag">dedupe</span></summary><div class="ans"><pre><code>from pyspark.sql import Window, functions as F
+
+w = Window.partitionBy("order_id").orderBy(F.col("updated_at").desc())
+latest = (df.withColumn("rn", F.row_number().over(w))
+            .filter("rn = 1").drop("rn"))</code></pre><p>The probe: why not <code>dropDuplicates(["order_id"])</code>? Because it keeps an <i>arbitrary</i> row, not the latest — it has no ordering. Saying that one sentence is usually the pass/fail moment of the question. This window is also the merge-dedupe from §3.3 in DataFrame clothing.</p></div></details>
+      <details class="qa"><summary>Flatten nested JSON into columns.<span class="qtag">semi-structured</span></summary><div class="ans"><pre><code>df = spark.read.option("mode", "PERMISSIVE") \
+          .option("columnNameOfCorruptRecord", "_bad") \
+          .json("s3://raw/orders/")
+
+flat = (df
+  .select("order_id",
+          F.col("customer.id").alias("customer_id"),
+          F.col("customer.city").alias("city"),
+          F.explode_outer("items").alias("item"))
+  .select("*", F.col("item.sku").alias("sku"),
+               F.col("item.qty").alias("qty"))
+  .drop("item"))</code></pre><p>Three senior touches: dot-paths for structs but <code>explode</code> for arrays (and <code>explode_outer</code> so parents with empty arrays survive); a corrupt-record column instead of letting bad rows vanish; and stating that explode multiplies row count — the fan-out matters downstream. This is Flipkart's machine-coding round almost verbatim.</p></div></details>
+      <details class="qa"><summary>Sessionize a clickstream: new session after 30 idle minutes.<span class="qtag">sessions</span></summary><div class="ans"><pre><code>w = Window.partitionBy("user_id").orderBy("ts")
+sess = (df
+  .withColumn("prev", F.lag("ts").over(w))
+  .withColumn("new_s", (F.col("ts").cast("long")
+      - F.col("prev").cast("long") > 1800).cast("int"))
+  .fillna({"new_s": 1})
+  .withColumn("session_id",
+      F.sum("new_s").over(w.rowsBetween(Window.unboundedPreceding, 0))))</code></pre><p>Same island trick as SQL: flag the boundaries with lag, running-sum the flags into ids. Name the assumption (gap threshold is a product decision) and the streaming version (§8.2 session windows do this with watermarks) to show you know where this pattern lives in production.</p></div></details>
+      <details class="qa"><summary>Word count — why do they still ask it?<span class="qtag">fundamentals</span></summary><div class="ans"><pre><code>counts = (spark.read.text("s3://logs/")
+  .select(F.explode(F.split("value", "\\s+")).alias("w"))
+  .filter("w != ''")
+  .groupBy("w").count()
+  .orderBy(F.desc("count")))</code></pre><p>Because it is the smallest program that contains a shuffle. The real question is the follow-up: which step is the wide transformation (groupBy), what crosses the network (partial counts, thanks to map-side combine), and how many output partitions there are (spark.sql.shuffle.partitions). Answer the plumbing, not just the code.</p></div></details>
+      <p class="qgroup">Spark, under stress</p>
+      <details class="qa"><summary>Executor OOM at 2 a.m. — walk me through the diagnosis.<span class="qtag">debugging</span></summary><div class="ans"><p>Ranked by base rate: <b>skew</b> — one task's partition is 100× the median (Spark UI, sorted task table, max vs median); <b>fan-out</b> — a join or explode multiplied rows mid-stage; <b>too few partitions</b> — data grew but the partition count did not, so each task now exceeds memory; <b>driver-side</b> — a collect() or an oversized broadcast. The order of inspection: Spark UI stage view first, then the query plan, then configs — touching <code>spark.executor.memory</code> before looking at the UI is the junior tell, because doubling memory on a skewed key just moves the OOM an hour later.</p></div></details>
+      <details class="qa"><summary>Execution vs storage memory — why does it matter?<span class="qtag">memory model</span></summary><div class="ans"><p>Unified memory: one pool shared between <b>execution</b> (shuffle, sort, join hash tables) and <b>storage</b> (cache). They borrow from each other, but execution can evict cached blocks while cache cannot evict running execution. Practical consequences: an over-cached application starves its own joins and spills; "memory used" in the UI conflates the two; and the fix for a spilling job is often to <i>uncache something</i>, not to add memory. That one sentence separates people who read the docs from people who fought the thing.</p></div></details>
+      <details class="qa"><summary>What does AQE actually do at runtime?<span class="qtag">AQE</span></summary><div class="ans"><p>Three re-plans using real statistics at stage boundaries (§5.5): <b>coalesces</b> tiny post-shuffle partitions to a sensible count, <b>switches join strategy</b> to broadcast when a side turns out small, and <b>splits skewed partitions</b> in sort-merge joins. What it does not fix: a bad initial partition count on read, an exploding UDF, under-provisioned executors, or skew in aggregations. So the senior answer to "do I still need to tune?" is yes — AQE fixes the plan mid-flight, not the physics.</p></div></details>
+      <details class="qa"><summary>How do you size executors for a job?<span class="qtag">tuning</span></summary><div class="ans"><p>Start from the classic heuristic: ~4–5 cores per executor (more and HDFS/S3 client throughput degrades, fewer and JVM overhead dominates), memory to match the data per task with ~10% overhead headroom, executor count from cluster capacity minus one core/node for the OS. Then say the senior part: the heuristic is a starting point — the real signal is the Spark UI after one run (spill? idle cores? GC time?), and on modern platforms dynamic allocation plus AQE means you tune the partition count and let the platform breathe. Quoting exact magic numbers with confidence is the junior tell; describing the feedback loop is the senior one.</p></div></details>
       <p class="qgroup">Snowflake</p>
       <details class="qa"><summary>What are micro-partitions and how does pruning work?<span class="qtag">Snowflake</span></summary><div class="ans"><p>Snowflake stores tables as immutable ~50–500MB columnar micro-partitions, each carrying min/max metadata per column. Queries prune by reading that metadata and skipping any partition that can't contain matching rows — automatic, no indexes. How well it prunes depends on clustering (how sorted the data is on your filter columns); a clustering key helps large tables whose load order doesn't match query filters.</p></div></details>
       <details class="qa"><summary>Scale up or scale out in Snowflake?<span class="qtag">Snowflake · cost</span></summary><div class="ans"><p>Up (bigger warehouse) for a single heavy query that spills/sorts a lot — more memory and CPU. Out (multi-cluster warehouse) for many concurrent users where the problem is queuing, not any one query. Nuance: doubling size doubles both speed and credit rate, so sizing up buys latency, not savings, on a parallel query — size to avoid spilling, use auto-suspend, and lean on the result cache to actually cut spend.</p></div></details>
@@ -1297,10 +1391,13 @@ res.show()</code></pre>
       <details class="qa"><summary>How does zero-copy cloning work and why is it instant?<span class="qtag">Snowflake</span></summary><div class="ans"><p><code>CREATE TABLE dev CLONE prod</code> duplicates only metadata pointers to the existing immutable micro-partitions — no data is copied, so it's instant and free at creation. New storage is consumed only as the clone diverges (copy-on-write). It's how you spin up full-size dev/test from production in seconds without paying for a second copy.</p></div></details>
       <details class="qa"><summary>What are Streams and Tasks?<span class="qtag">Snowflake</span></summary><div class="ans"><p>A Stream is a change-data-capture cursor on a table (what's been inserted/updated/deleted since you last read it); a Task runs SQL on a schedule or dependency. A Task that consumes a Stream and <code>MERGE</code>s the changes downstream builds incremental pipelines entirely inside Snowflake — pair with Snowpipe for continuous file ingestion and you have near-real-time loads with no external orchestrator.</p></div></details>
 
-      <p class="qgroup">SnapLogic</p>
-      <details class="qa"><summary>Triggered vs Ultra pipelines?<span class="qtag">SnapLogic</span></summary><div class="ans"><p>Triggered/scheduled pipelines spin up, run, and tear down — right for batch and moderate volume. Ultra pipelines are always-on and low-latency — for near-real-time request/response. Choose by latency need: scheduled for batch ETL, Ultra when a caller waits on the result.</p></div></details>
-      <details class="qa"><summary>What is a Snaplex, and how do you handle bad records?<span class="qtag">SnapLogic</span></summary><div class="ans"><p>The Snaplex is the execution engine — a cloud-hosted Cloudplex, or a Groundplex you run inside your own network to reach on-prem systems securely. Bad records are handled with <b>error views</b>: each Snap can route failed rows to a separate error path instead of killing the pipeline, so good data flows while bad rows are quarantined — the low-code echo of "handle partial failure."</p></div></details>
-
+      <p class="qgroup">Data integration &amp; cloud</p>
+      <details class="qa"><summary>When is a low-code integration tool the right call?<span class="qtag">integration</span></summary><div class="ans"><p>When the problem is many standard sources with extract-and-load needs: the vendor maintains the connectors, absorbs upstream API changes, and gives retries and error views for free. It stops being right when transformation logic grows — GUIs version and test badly — so the mature pattern is managed connectors for EL, versioned code (SQL/dbt/Spark) for T. Answering with that split, rather than a tool name, is what reads as senior.</p></div></details>
+      <details class="qa"><summary>Glue or EMR for a Spark workload?<span class="qtag">AWS</span></summary><div class="ans"><p>Glue for serverless, scheduled ETL a small team owns — no clusters to manage, catalog built in, pay per DPU-hour. EMR when you need control: specific Spark versions, custom configs, long-running or massive jobs, spot-instance cost engineering. The trade is operational burden versus control and unit cost at scale. Bonus point: either way the data lives in S3, so you can change the compute decision later.</p></div></details>
+      <details class="qa"><summary>Athena or Redshift?<span class="qtag">AWS</span></summary><div class="ans"><p>Athena is serverless SQL over S3, priced per TB scanned — ideal for ad-hoc queries on the lake, and cheap only if the data is partitioned and columnar; scanning raw unpartitioned JSON is the classic bill shock. Redshift is the provisioned warehouse for concurrent, repeated BI workloads. In Redshift, name distribution keys (collocate the join key so rows don't move between nodes) and sort keys (skip blocks on range filters) — that pair is the standard follow-up.</p></div></details>
+      <details class="qa"><summary>Kinesis or Kafka (MSK)?<span class="qtag">AWS · streaming</span></summary><div class="ans"><p>Same log abstraction: shards are partitions, ordering holds per shard, consumers scale to shard count (§8.1). Kinesis is fully managed and integrates natively with Lambda/Firehose — least ops. MSK is real Kafka when you need the ecosystem: connectors, exact client semantics, cross-cloud portability. If the team already speaks Kafka, MSK; if you want AWS to own it, Kinesis.</p></div></details>
+      <details class="qa"><summary>Map the AWS stack to Azure and GCP.<span class="qtag">cloud</span></summary><div class="ans"><p>Six ideas, three vocabularies. Lake: S3 / ADLS Gen2 / GCS. Warehouse: Redshift / Synapse / BigQuery. Spark: Glue·EMR / Databricks·Synapse Spark / Dataproc. Log: Kinesis·MSK / Event Hubs / Pub-Sub. Orchestrator: MWAA·Step Functions / ADF / Composer. Serverless SQL: Athena / Synapse serverless / BigQuery itself. Answer in problems first, then the vendor's noun — it works in any loop, and it matters in India where product companies run AWS and GCCs run Azure.</p></div></details>
+      <details class="qa"><summary>Why not do the heavy transform in Lambda?<span class="qtag">AWS</span></summary><div class="ans"><p>Hard 15-minute timeout, memory capped, no shuffle — Lambda is event glue (trigger on S3 arrival, route, notify), not a data processor. Proposing it for joins over TBs is a known red flag. The senior answer names the boundary: Lambda triggers the Glue/EMR job; Spark does the work.</p></div></details>
       <p class="qgroup">DevOps &amp; MLOps</p>
       <details class="qa"><summary>What is idempotency and how do you achieve it in a pipeline?<span class="qtag">DevOps</span></summary><div class="ans"><p>Running a task twice produces the same result as once — essential because tasks get retried and backfilled. Achieve it by overwriting a specific partition (write <code>date=X</code> by replacing that partition) or upserting on a key, never a blind append. "I partition by date and overwrite the partition, so retries and backfills are safe" is the answer.</p></div></details>
       <details class="qa"><summary>How do you make a pipeline safe to backfill?<span class="qtag">DevOps</span></summary><div class="ans"><p>Two joined ideas: idempotent writes (overwrite the target partition or upsert, so a rerun replaces rather than duplicates) and date-parameterized tasks (the run reads its logical date via <code>{{ ds }}</code>, so it can be pointed at any historical day). Idempotency makes backfills safe; date-parameterization makes them possible.</p></div></details>
@@ -1332,6 +1429,13 @@ res.show()</code></pre>
       <details class="qa"><summary>What's the small-files problem?<span class="qtag">design</span></summary><div class="ans"><p>Streaming writers and over-partitioned batch jobs emit thousands of tiny files. Every file costs a metadata lookup and an open, so query planning and scan time collapse even though total bytes are small. Fix with a compaction job that rewrites small files into ~128MB–1GB targets, coarser partitioning, and <code>coalesce</code> before writing. Mentioning it unprompted in a design round signals you've operated a lake.</p></div></details>
       <details class="qa"><summary>Lambda or Kappa architecture?<span class="qtag">design</span></summary><div class="ans"><p>Lambda runs parallel batch and streaming paths over the same data; its real cost is two implementations of the same business logic that inevitably drift. Kappa runs one streaming path and replays the log for reprocessing. The modern preference is a single path — stream with replay, or batch on a short interval — reaching for two only when requirements genuinely demand both a fast approximate answer and a slow exact one. If you propose both, name which one is the system of record.</p></div></details>
 
+      <p class="qgroup">Scenario drills</p>
+      <details class="qa"><summary>A job that took 40 minutes now takes 6 hours. Nothing changed. Go.<span class="qtag">scenario</span></summary><div class="ans"><p>"Nothing changed" is always false — find what did. In order: <b>the data</b> (volume growth, a skewed hot key appearing, an upstream repartition producing millions of small files — same bytes, 100× the tasks); <b>the plan</b> (a broadcast join silently flipping to sort-merge because a table crossed the threshold; stale statistics); <b>the platform</b> (cluster contention, spot loss, a quietly-changed config). Method beats guesses: pull up the Spark UI for both runs, diff stage durations, and say what you would compare. Naming small-files and the broadcast flip covers the two most common real causes.</p></div></details>
+      <details class="qa"><summary>A stakeholder says the dashboard numbers are wrong.<span class="qtag">scenario</span></summary><div class="ans"><p>First, make "wrong" precise: which metric, which date range, wrong compared to what? Then reproduce at the lowest layer — run the metric query yourself against the mart, then walk lineage upstream (mart → staging → raw) comparing counts and sums at each hop until the divergence appears. The usual suspects, in order: timezone boundaries (their report is IST, the pipeline is UTC), duplicates from a replay, a join that quietly fans out, late data that arrived after their snapshot. Communicate while diagnosing — an ETA and a "here is what I have ruled out" beats silence — and finish with the prevention: a reconciliation check (§3.5) at the hop that lied.</p></div></details>
+      <details class="qa"><summary>Backfill two years of data without breaking prod.<span class="qtag">scenario</span></summary><div class="ans"><p>Plan before code: run on <b>isolated compute</b> (separate cluster/warehouse so the daily SLA is untouched), process <b>partition by partition</b> with idempotent MERGE writes so any failure resumes instead of restarting, <b>throttle</b> against the source and the warehouse, and <b>verify as you go</b> — counts and control totals per partition against the source, not one giant check at the end. Mention the dual-write question (does new data keep flowing while you backfill? land both, reconcile at the boundary date) and cost (two years of reprocessing is a real bill — estimate it first). This is §10.2's idempotency argument as a story.</p></div></details>
+      <details class="qa"><summary>Duplicates appeared in a production dashboard overnight.<span class="qtag">scenario</span></summary><div class="ans"><p>Two questions locate it: <b>where</b> (raw already has dupes → upstream replay/at-least-once delivery; raw clean but mart dirty → your load or a fan-out join) and <b>since when</b> (one day → a rerun double-appended; growing over weeks → a key assumption broke). Immediate fix: dedupe the affected partitions with the ROW_NUMBER pattern and restate the dashboard. Real fix: make the load idempotent — MERGE on the business key instead of append — and add a uniqueness check that pages before the CEO sees it. Saying "the bug is that a rerun was ever unsafe" is the senior close.</p></div></details>
+      <details class="qa"><summary>You must cut the platform bill 30% this quarter.<span class="qtag">scenario</span></summary><div class="ans"><p>Measure first: cost per pipeline/warehouse/table, because 20% of jobs are 80% of spend and intuition lies. Then the ranked levers: <b>kill zombies</b> (jobs nobody reads — ask who consumes each expensive output); <b>full-refresh → incremental</b> (§3.2, usually the single biggest cut); <b>right-size and auto-suspend</b> compute (idle warehouses, oversized clusters, spot for fault-tolerant batch); <b>storage lifecycle</b> (compress, tier old partitions to cold storage); <b>fix the top 3 worst queries</b> (partition pruning beats cluster upgrades). Close with the guardrail: publish cost per pipeline so it stays visible — one-off cleanups regress in a quarter.</p></div></details>
+      <details class="qa"><summary>Upstream added a column and renamed another. Your pipeline is failing. What now — and how do you prevent round two?<span class="qtag">scenario</span></summary><div class="ans"><p>Now: stop the bleed (pause the load so you do not write garbage), map old→new column explicitly for the rename, deploy, then reprocess the failed window idempotently. Additions are non-breaking if your pipeline selects columns explicitly — <code>SELECT *</code> is why it broke. Prevention is the real answer: explicit column lists, a schema check at ingestion that quarantines unknown shapes instead of crashing (§3.4), and a conversation upstream — a data contract, even an informal one, that renames get a deprecation window. The story ends with the org fix, not the code fix.</p></div></details>
       <p class="qgroup">Behavioral</p>
       <details class="qa"><summary>Tell me about a time a pipeline broke in production.<span class="qtag">behavioral</span></summary><div class="ans"><p>The most-asked DE behavioral question. Structure: how you detected it (an alert you'd built beats "an analyst told us"), the blast radius, the call you made under pressure, the fix, and the durable prevention. Carry a number in the situation and one in the result. End on the systemic change — "we added a row-count reconciliation that has caught two silent failures since" — because a story ending in a permanent improvement reads as an engineer who compounds.</p></div></details>
       <details class="qa"><summary>Tell me about a time you were wrong.<span class="qtag">behavioral</span></summary><div class="ans"><p>Asked in nearly every senior loop, and the failure mode is the disguised humblebrag ("I care too much about quality"). Pick a real mistake with real consequences, own it without hedging, and spend most of the answer on the correction and the systemic fix. Interviewers are calibrating whether you can be told you're wrong — which matters more in data roles, where being confidently wrong propagates downstream.</p></div></details>
@@ -1510,6 +1614,32 @@ res.show()</code></pre>
     </tbody></table></div>
 
   </div>
+
+    <p class="cs-h">The three-cloud dictionary</p>
+    <p class="cs-sub">Same six ideas, three vocabularies. Answer in problems, then translate.</p>
+    <div class="cs"><table><thead><tr><th>Problem</th><th>AWS</th><th>Azure</th><th>GCP</th></tr></thead><tbody>
+      <tr><td>Object store / lake</td><td>S3</td><td>ADLS Gen2</td><td>GCS</td></tr>
+      <tr><td>Warehouse</td><td>Redshift</td><td>Synapse</td><td>BigQuery</td></tr>
+      <tr><td>Serverless SQL on the lake</td><td>Athena</td><td>Synapse serverless</td><td>BigQuery external</td></tr>
+      <tr><td>Managed Spark</td><td>Glue · EMR</td><td>Databricks · Synapse Spark</td><td>Dataproc</td></tr>
+      <tr><td>Event log / stream</td><td>Kinesis · MSK</td><td>Event Hubs</td><td>Pub/Sub</td></tr>
+      <tr><td>Orchestration</td><td>MWAA · Step Functions</td><td>Data Factory</td><td>Composer</td></tr>
+      <tr><td>Streaming compute</td><td>Managed Flink · Spark</td><td>Stream Analytics</td><td>Dataflow</td></tr>
+      <tr><td>Key-value / NoSQL</td><td>DynamoDB</td><td>Cosmos DB</td><td>Bigtable</td></tr>
+    </tbody></table></div>
+
+    <p class="cs-h">SQL patterns — recognition cues</p>
+    <p class="cs-sub">The prompt words that tell you which pattern you are in, before you write a line.</p>
+    <div class="cs"><table><thead><tr><th>Prompt says</th><th>Pattern</th><th>Core move</th></tr></thead><tbody>
+      <tr><td>"consecutive", "streak", "in a row"</td><td>Gaps &amp; islands</td><td>date − ROW_NUMBER() is constant per run; group by it</td></tr>
+      <tr><td>"top N per …", "best in each"</td><td>Top-N per group</td><td>DENSE_RANK() over partition, filter in outer query</td></tr>
+      <tr><td>"rolling", "moving", "trailing 7 days"</td><td>Window frame</td><td>ROWS BETWEEN 6 PRECEDING — densify dates first</td></tr>
+      <tr><td>"came back", "day-1 retention", "cohort"</td><td>Retention</td><td>join signups→events on date offset, conditional COUNT</td></tr>
+      <tr><td>"session", "30 minutes of inactivity"</td><td>Sessionization</td><td>LAG() gap flag, running SUM() of flags = session id</td></tr>
+      <tr><td>"remove duplicates, keep latest"</td><td>Dedup</td><td>ROW_NUMBER() ordered by recency = 1</td></tr>
+      <tr><td>"step conversion", "of those, how many…"</td><td>Funnel</td><td>conditional aggregation per step, divide down</td></tr>
+      <tr><td>"compare to previous", "growth"</td><td>Offset</td><td>LAG()/LEAD(), watch NULL first rows</td></tr>
+    </tbody></table></div>
 </main>
 
 <footer class="ft">
@@ -1517,7 +1647,7 @@ res.show()</code></pre>
     <div class="ft-grid">
       <div>
         <h4>The DE Interview</h4>
-        <p class="fine">An interactive, first-principles guide to the data-engineering interview — SQL, modeling, big-data fundamentals, Spark internals and tuning, PySpark, Snowflake, SnapLogic, DevOps and MLOps. Independent and unaffiliated; product names and trademarks belong to their owners. Simulator numbers are illustrative — built for intuition, not for quoting in production.</p>
+        <p class="fine">An interactive, first-principles guide to the data-engineering interview — SQL, modeling, big-data fundamentals, Spark internals and tuning, PySpark, Snowflake, data integration, DevOps and MLOps. Independent and unaffiliated; product names and trademarks belong to their owners. Simulator numbers are illustrative — built for intuition, not for quoting in production.</p>
       </div>
       <div>
         <h4>Read</h4>
@@ -2442,38 +2572,42 @@ makeShuffle("#sim-shuffle");
 (function(){
   var root=$("#sim-loops");if(!root)return;
   var CO=[
-    {id:"meta",n:"Meta",rounds:[["Recruiter screen","fit, level, loop preview"],["Technical screen","5 SQL + 5 Python in 60 min on CoderPad; reported bar ~3 of 5 in each half"],["Onsite ×3–4","each round blends product sense, modeling, SQL/ETL on a real product scenario"],["Ownership","often folded into the technical rounds rather than standalone"]],
-      filter:"Product sense, in every round",
-      trap:"Writing a correct query but not explaining why the metric matters. Candidates with strong SQL get rejected for computing DAU without being able to say why DAU is the wrong metric for a given product.",
-      stack:["Presto","Spark","Hive","Dataswarm"]},
-    {id:"amazon",n:"Amazon",rounds:[["Online assessment","some teams — SQL and coding on HackerRank"],["Phone screen","SQL, modeling, Python/ETL, plus Leadership Principles"],["Onsite ×3–5","SQL, ETL/modeling, system design, coding — LPs woven through every round"],["Bar Raiser","interviewer from outside the team, with veto"]],
+    {id:"amazon",n:"Amazon India",rounds:[["Online assessment","some teams — SQL and coding on HackerRank"],["Phone screen","SQL, modeling, Python/ETL, plus Leadership Principles"],["Onsite ×3–5","SQL, ETL/modeling, system design, coding — LPs woven through every round"],["Bar Raiser","interviewer from outside the team, with veto"]],
       filter:"Leadership Principles, everywhere",
-      trap:"Treating it as a technical loop. Roughly half the evaluation is behavioral, and the classic rejection is a candidate who can't tell one specific story about owning a broken pipeline at 2 a.m.",
-      stack:["Redshift","S3","Glue","EMR","DynamoDB"]},
-    {id:"google",n:"Google",rounds:[["Recruiter screen","background and level"],["Technical screen","advanced SQL plus Python data manipulation, often on a shared doc"],["Onsite ×5","data modeling · pipeline design · Python · advanced SQL · Googleyness"],["Team match","after the loop, before the offer"]],
+      trap:"Treating it as a technical loop. The India process mirrors global: roughly half the evaluation is behavioral, and the classic rejection is a candidate who cannot tell one specific story about owning a broken pipeline at 2 a.m. Expect the AWS stack asked by name.",
+      stack:["Redshift","S3","Glue","EMR","Kinesis"]},
+    {id:"google",n:"Google India",rounds:[["Recruiter screen","background and level; Bengaluru / Hyderabad"],["Technical screen","advanced SQL plus Python data manipulation"],["Onsite ×5","data modeling · pipeline design · Python · advanced SQL · Googleyness"],["Team match","after the loop, before the offer"]],
       filter:"The pipeline design round",
-      trap:"Over-preparing coding and under-preparing the infrastructure half. Reported prompts are big and open — design real-time ad-click analytics, cover batch vs streaming, idempotency, and late events — and rigidity when the interviewer changes a requirement reads as a fail.",
+      trap:"Rigidity under pushback, and bluffing GCP breadth. Reported prompts are open-ended — design real-time ad-click analytics with batch-vs-streaming, idempotency, late events. Saying which services you have run in production and which you only know on paper passes; claiming everything fails.",
       stack:["BigQuery","Dataflow","Pub/Sub","Composer"]},
-    {id:"netflix",n:"Netflix",rounds:[["Recruiter screen","context on the team and the bar"],["Technical screen","SQL and Python/Scala"],["Onsite","deep system design anchored in something Netflix actually runs, plus coding"],["Culture","a conversation about judgement and independence, not STAR trivia"]],
-      filter:"Design + culture, weighted equally",
-      trap:"Designing a generic architecture. Proposing Snowflake as \"the warehouse\" signals you didn't research the stack — the lake is Iceberg, Trino and Spark, with Flink for streams.",
-      stack:["Iceberg","Trino","Spark","Flink","Kafka"]},
-    {id:"uber",n:"Uber",rounds:[["Recruiter screen","team and level"],["Technical screen","SQL and coding"],["Onsite","streaming-heavy design, marketplace data modeling, coding, behavioral"]],
+    {id:"microsoft",n:"Microsoft IDC",rounds:[["Recruiter screen","IDC — Hyderabad, Bengaluru, Noida"],["Technical rounds ×2–3","SQL, PySpark, light DSA, Azure pipeline scenarios"],["Design round","an end-to-end Azure data platform"],["Hiring manager + AA","behavioral depth; the as-appropriate round decides"]],
+      filter:"Azure fluency",
+      trap:"Prepping AWS-only. IDC loops assume the Azure vocabulary — ADF pipelines, ADLS, Synapse, Azure Databricks. Map fluently from what you know, and say plainly which pieces you have run in production.",
+      stack:["ADF","ADLS Gen2","Synapse","Azure Databricks","Event Hubs"]},
+    {id:"walmart",n:"Walmart Global Tech",rounds:[["Screen","project walk-through; why Walmart"],["Hands-on coding","~15 min project talk, then ~45 min pure SQL + Spark coding"],["Spark & big data","internals: partitioning vs bucketing, skew, tuning stories; Kafka, Airflow"],["System design","an event pipeline end-to-end, often from your own domain"],["Hiring manager","modeling scenarios + behavioral"]],
+      filter:"Spark internals, with war stories",
+      trap:"Writing correct SQL you cannot optimize, and describing projects without the why. Candidates report long rounds (90–105 minutes) that keep drilling until the tuning stories run out — what did you change, and what did it cost, is the bar.",
+      stack:["Spark","Kafka","Airflow","Hive"]},
+    {id:"flipkart",n:"Flipkart",rounds:[["Screen","background; DE-1/DE-2 leveling"],["Machine coding","messy JSON files + queries to answer, any language — most candidates use Spark"],["Tech round","project end-to-end · Spark internals (jobs, stages, tasks) · an ETL scenario from ingestion to warehouse with SQL on it · 1–2 medium DSA"],["Hiring manager","guesstimates and problem-solving"]],
+      filter:"Machine coding on messy files",
+      trap:"Notebook-level Spark. The internals carry the weight — candidates report jobs/stages/tasks and optimization questions deciding the round, with file-format fluency (JSON, Parquet, Avro) assumed in machine coding.",
+      stack:["Spark","Kafka","Hive","Hadoop"]},
+    {id:"phonepe",n:"PhonePe · fintech",rounds:[["Screen","team and level; Razorpay/CRED loops rhyme"],["SQL + coding","heavy SQL, Python data manipulation"],["Design round","payment-scale streaming: UPI event volumes, fraud signals, reconciliation"],["Hiring manager","ownership and incident stories"]],
+      filter:"Correctness where duplicates are money",
+      trap:"Hand-waving idempotency. In payments an at-least-once duplicate is a double debit — expect exactly-once mechanics, dedupe keys, and reconciliation back to the ledger to be probed hard, plus data-residency and PII awareness.",
+      stack:["Kafka","Flink","Spark","the lakehouse"]},
+    {id:"swiggy",n:"Swiggy · Zomato",rounds:[["Screen","background"],["SQL + Python","order-and-delivery flavored problems"],["Design round","live order tracking, ETA dashboards, surge — real-time by default"],["Hiring manager","behavioral + growth"]],
+      filter:"Real-time order analytics",
+      trap:"Designing for the average, not the dinner peak. Food-delivery traffic is spiky — evening and weekend multiples — so a design sized on daily totals reads as never having run ops. Lead with the peak-to-average ratio.",
+      stack:["Kafka","Spark","Flink","Airflow"]},
+    {id:"uber",n:"Uber India",rounds:[["Screen","Bengaluru / Hyderabad teams"],["Technical screen","SQL and coding"],["Onsite","streaming-heavy design, marketplace modeling, coding, behavioral"]],
       filter:"Streaming is not optional",
-      trap:"Showing up with only batch experience. Expect Kafka, Flink, exactly-once, watermarks and windowing — and marketplace modeling (rider, driver, trip, payment, surge zone) that's messier than a standard e-commerce schema.",
+      trap:"Batch-only experience. Expect Kafka, Flink, exactly-once, watermarks and windowing — plus marketplace modeling (rider, driver, trip, payment, surge zone) messier than a standard e-commerce schema.",
       stack:["Kafka","Flink","Hudi","Pinot"]},
-    {id:"databricks",n:"Databricks",rounds:[["Recruiter screen","pointed questions on Spark depth and lakehouse experience"],["Technical screen","live coding in Python, Scala or Java"],["Onsite ×4–5","coding, systems, a design round, behavioral, sometimes a domain session"],["Hiring manager","team fit and level"]],
-      filter:"Genuine Spark internals",
-      trap:"Surface-level Spark. This is the company that builds it, so \"I've used PySpark\" won't survive follow-ups on shuffles, AQE, and Delta internals. Loops run longer at staff level.",
-      stack:["Spark","Delta Lake","Unity Catalog"]},
-    {id:"linkedin",n:"LinkedIn",rounds:[["Recruiter screen","one of the longer loops in tech"],["Technical screen","SQL and coding"],["DSA round","LeetCode-medium arrays, hash maps, strings — unusual for a DE role"],["Statistics round","probability, distributions, A/B testing"],["Onsite","modeling (SCDs for member profiles), design, behavioral"]],
-      filter:"Two rounds nobody expects",
-      trap:"Walking in prepped only for SQL and design. The dedicated algorithms round and the statistics round catch most candidates off-guard, and a 6–8 round loop needs pacing.",
-      stack:["Kafka","Spark","Pinot","Trino"]},
-    {id:"snowflake",n:"Snowflake",rounds:[["Recruiter screen","which track — platform engineering or data/analytics"],["Technical phone screen","coding and SQL"],["Onsite ×4–5","coding, systems, design, behavioral, sometimes cross-functional"],["Hiring manager","closing conversation"]],
-      filter:"Which loop you get",
-      trap:"Assuming one interview shape. The platform track is a systems/concurrency interview; the data track is warehouse-and-modeling. Ask your recruiter which one you're in before you prep.",
-      stack:["Snowflake","dbt","Snowpark"]}
+    {id:"gcc",n:"Banking & retail GCCs",rounds:[["Screen","JPMC, Goldman, Fidelity, Target, Tesco and peers"],["Tech rounds ×1–2","deep SQL, PySpark, and migration scenarios — legacy ETL to cloud"],["Design-lite","a warehouse or pipeline design, panel style"],["HM + behavioral","bank GCCs run structured behavioral seriously"]],
+      filter:"SQL depth + regulated-data judgement",
+      trap:"Dismissing legacy. The job is often the migration — Informatica-era pipelines moving to Azure, Snowflake, or Databricks — so migration stories score. Volunteering PII handling, lineage, and audit unprompted is what regulated-industry interviewers listen for.",
+      stack:["Azure","ADF","Snowflake","Spark","Informatica → cloud"]}
   ];
   root.innerHTML='<div class="sim-h"><span class="t">Loop explorer</span><span class="s">reported shapes, 2025–26</span></div>'
     +'<div class="tabs lp-tabs" style="flex-wrap:wrap"></div><div class="lp-body"></div>';
@@ -2492,7 +2626,7 @@ makeShuffle("#sim-shuffle");
     $$(".tab",tabs).forEach(function(b){b.classList.toggle("on",b.dataset.id===id)});
   }
   $$(".tab",tabs).forEach(function(b){b.addEventListener("click",function(){draw(b.dataset.id)})});
-  draw("meta");
+  draw("amazon");
 })();
 
 route();
