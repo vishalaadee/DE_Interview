@@ -443,6 +443,7 @@ details.qa[open]>summary::before{transform:rotate(90deg)}
         <p>The loop itself is remarkably standardised: five to seven rounds drawn from five domains — SQL, coding, data modeling, pipeline design, and behavioral. What changes between companies is the weighting and which round does the filtering, which is why there's a <a href="#/companies">playbook for each of the top payers</a>. What changes between <i>levels</i> is how much judgement the room expects on top of a working answer.</p>
         <p>This guide is built around that spine. It goes deepest exactly where interviews do — <b>the shuffle, Spark's execution model, and performance tuning</b> get three full chapters — because "rewrite it with a broadcast join and explain why" is the question that most often decides the loop. Every chapter pairs a tight explanation with a simulator for the parts you understand faster by turning a dial, worked code you could say out loud, and the <b>interview angle</b>: what they're really probing and what a senior answer sounds like.</p>
         <p>Chapters 13 to 16 cover the newer conversation: <b>agentic AI</b>. What makes a system an agent, how tool calling and the agent loop actually work, the harness around the model, RAG and MCP, how to evaluate and trace agents, how to secure them against prompt injection, and the agentic system design round. It's written for data engineers, because most of what makes an agent production-grade (idempotency, checkpoints, contracts, lineage, data-quality gates) is work you already know how to do.</p>
+        <p>Chapters 17 to 22 cover the <b>platform underneath</b>: Docker and Kubernetes from first principles, EKS and EMR on AWS, Kafka internals and operations, a casebook of production deployment and pipeline failures with their fixes, and the engineering articles from Uber, LinkedIn, Netflix, Airbnb, DoorDash and Pinterest that interviewers expect you to know.</p>
         <p>Read it front to back to build the model, or jump to the <a href="#/bank">question bank</a> to drill, and the <a href="#/sheets">cheat sheets</a> the night before. Numbers in the simulators are illustrative — shaped to build intuition, not to quote in production.</p>
       </div>
     </section>
@@ -1440,6 +1441,384 @@ CI: unit tests (fake model) → attack suite → eval subset gate → build → 
   </div></div>
 </main>
 
+<!-- ================= CH17 · DOCKER AND CONTAINERS ================= -->
+<main class="page" id="page-ch17" data-ch="17" data-title="Docker &amp; containers">
+  <div class="wrap"><div class="ch-grid">
+    <aside class="side"></aside>
+    <article class="art">
+      <p class="crumb"><a href="#/">Contents</a> · Chapter 17 · Docker &amp; containers</p>
+
+      <section class="sec" id="s17-1" data-num="17.1" data-t="What a container actually is">
+        <p class="sec-num">17.1</p><h2>What a container actually is</h2>
+        <p>A container is not a small virtual machine. It is an <b>ordinary Linux process</b> that the kernel isolates in two ways. <b>Namespaces</b> limit what it can <i>see</i>: its own process tree (PID), network stack, mount table, hostname and users. <b>cgroups</b> limit what it can <i>use</i>: CPU time, memory, I/O and the number of processes. There is no second kernel. Every container on a host shares the host's kernel, which is why containers start in milliseconds, and why a kernel bug or a privileged container is a host-level problem.</p>
+        <p>An <b>image</b> is the filesystem that process starts from: a stack of read-only <b>layers</b>, each one the diff produced by one Dockerfile instruction, plus metadata (entrypoint, env, user, exposed ports). A running container adds one thin writable layer on top (copy-on-write). Layers are content-addressed by hash, so two images built on the same base share those bytes on disk and in the registry. A <b>registry</b> (ECR, Docker Hub, GHCR) stores images by <code>repository:tag</code>, and every tag points at an immutable <b>digest</b> (<code>sha256:…</code>).</p>
+        <p>The vocabulary interviewers expect: <b>Docker</b> is the tooling (CLI, build engine BuildKit, daemon). <b>containerd</b> is the runtime daemon that actually manages containers, and <b>runc</b> is the low-level tool that creates the namespaces and cgroups. The <b>OCI</b> specs standardise the image format and runtime, which is why an image built by Docker runs unchanged on Kubernetes, which talks to containerd directly and hasn't used the Docker daemon since dockershim was removed in 1.24.</p>
+        <div class="note iq"><p class="nt">Interview angle</p><p>"Container vs VM?" Answer with the mechanism: a VM virtualises hardware and boots its own kernel, a container is a process with namespaces and cgroups on a shared kernel. Then give the consequence each way: containers are lighter and start faster; VMs give a stronger isolation boundary, which is why multi-tenant platforms (Fargate, Lambda) put each tenant's containers inside a micro-VM.</p></div>
+        <div class="pn"></div>
+      </section>
+
+      <section class="sec" id="s17-2" data-num="17.2" data-t="Writing a production Dockerfile">
+        <p class="sec-num">17.2</p><h2>Writing a production Dockerfile</h2>
+        <p>Three rules carry most of the weight. <b>Order for the cache</b>: Docker reuses a layer only if that instruction and every one before it is unchanged, so copy the dependency manifest and install dependencies <i>before</i> copying source code. Otherwise every one-line code change reinstalls every package. <b>Build in one stage, ship in another</b>: a multi-stage build compiles or installs with the full toolchain, then copies only the result into a slim runtime image. <b>Run as a non-root user</b> with an explicit <code>USER</code>.</p>
+<pre><code><span class="c"># syntax=docker/dockerfile:1</span>
+<span class="k">FROM</span> python:3.12-slim <span class="k">AS</span> build
+<span class="k">WORKDIR</span> /app
+<span class="k">COPY</span> requirements.txt .                       <span class="c"># manifest first: this layer stays cached</span>
+<span class="k">RUN</span> pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+<span class="k">FROM</span> python:3.12-slim
+<span class="k">RUN</span> useradd --uid 10001 app
+<span class="k">COPY</span> --from=build /install /usr/local
+<span class="k">WORKDIR</span> /app
+<span class="k">COPY</span> src/ ./src/                              <span class="c"># code last: changes often</span>
+<span class="k">USER</span> 10001
+<span class="k">ENTRYPOINT</span> [<span class="s">"python"</span>, <span class="s">"-m"</span>, <span class="s">"src.job"</span>]          <span class="c"># exec form: python is PID 1 and gets SIGTERM</span></code></pre>
+        <p>Pin what you depend on. <code>FROM python:3.12-slim</code> can change under you when the tag is re-pushed; for builds you must reproduce, pin the digest (<code>python:3.12-slim@sha256:…</code>) and let a bot such as Renovate or Dependabot propose updates. Deploy by digest or by an immutable tag (the git SHA), never by <code>latest</code>, because <code>latest</code> makes "what is running in production?" unanswerable and makes rollback a guess.</p>
+        <p>Add a <code>.dockerignore</code> (exclude <code>.git</code>, virtualenvs, data files, <code>.env</code>). Without one, the whole directory is sent as build context: slow builds, bloated layers, and secrets copied into the image by a careless <code>COPY . .</code>.</p>
+        <div class="note iq"><p class="nt">Interview angle</p><p>"Your image is 2.4 GB and builds take 12 minutes. What do you do?" Check the instruction order for cache busting, add a <code>.dockerignore</code>, move to multi-stage with a slim or distroless base, combine <code>apt-get update &amp;&amp; install &amp;&amp; rm -rf /var/lib/apt/lists/*</code> into one <code>RUN</code> (a file deleted in a later layer still ships in the earlier one), and use a BuildKit cache mount for the package manager. Then measure with <code>docker history</code> or <code>dive</code> to see which layer is heavy.</p></div>
+        <div class="pn"></div>
+      </section>
+
+      <section class="sec" id="s17-3" data-num="17.3" data-t="Runtime: PID 1, signals and memory">
+        <p class="sec-num">17.3</p><h2>Runtime: PID 1, signals and memory</h2>
+        <p><b>PID 1 is special.</b> The first process in a container's PID namespace doesn't get the kernel's default signal handlers, so a <code>SIGTERM</code> it doesn't explicitly handle is ignored. It also has to reap zombie children. Two common mistakes follow. The <b>shell form</b> <code>CMD python job.py</code> runs <code>/bin/sh -c "python job.py"</code>, so the shell is PID 1 and usually doesn't forward <code>SIGTERM</code> to Python. A wrapper script that ends in <code>python job.py</code> without <code>exec</code> does the same. The symptom: every deploy or scale-down waits the full grace period (30 s on Kubernetes), then the process is <code>SIGKILL</code>ed mid-write. Fix: exec form, <code>exec</code> in wrapper scripts, or a tiny init (<code>tini</code>, <code>docker run --init</code>) that forwards signals and reaps zombies. Then actually handle <code>SIGTERM</code>: stop taking work, finish or checkpoint in-flight work, commit offsets, exit.</p>
+        <p><b>Memory limits are enforced by the kernel.</b> When a container's cgroup exceeds its memory limit, the kernel's OOM killer kills a process in it. The container exits with code <b>137</b> (128 + signal 9) and Kubernetes reports <code>OOMKilled</code>. There's no stack trace and often no log line, because the process didn't get a chance to write one. The memory that counts includes page cache from files the process writes and off-heap allocations, not only the heap.</p>
+        <p><b>Runtimes must know about the limit.</b> Modern JVMs (since 10, backported to 8u191) read cgroup limits, but the default max heap is 25% of the container's memory, which wastes memory in a dedicated container. Set <code>-XX:MaxRAMPercentage=70</code> or so, leaving room for metaspace, threads, direct buffers and native libraries. Python and Node don't size themselves to the container at all: a pandas job reading a 3 GB file into a 2 GiB container is simply killed. For CPU, <code>os.cpu_count()</code> returns the <i>host's</i> cores, not the container's quota, so thread pools sized from it oversubscribe the quota and get throttled.</p>
+        <div class="note bad"><p class="nt">The classic gotcha</p><p>Exit code 137 is a kill signal, not necessarily memory. Check the reason: <code>OOMKilled</code> means the memory limit; otherwise something sent <code>SIGKILL</code>, usually the orchestrator after the grace period expired because the app ignored <code>SIGTERM</code>. Exit 143 (128 + 15) means the process exited cleanly on <code>SIGTERM</code>, which is what you want.</p></div>
+        <div class="pn"></div>
+      </section>
+
+      <section class="sec" id="s17-4" data-num="17.4" data-t="Tricky cases and security">
+        <p class="sec-num">17.4</p><h2>Tricky cases and security</h2>
+        <p><b>"exec format error".</b> The image was built for a different CPU architecture: built on an Apple-silicon laptop (arm64) and run on x86 nodes, or the reverse on Graviton. Build multi-arch images with <code>docker buildx build --platform linux/amd64,linux/arm64</code>, and check the manifest with <code>docker buildx imagetools inspect</code>.</p>
+        <p><b>Secrets in layers.</b> An <code>ARG</code> or <code>ENV</code> holding a token, or a <code>COPY</code> of a credentials file that a later layer deletes, is still readable by anyone who can pull the image (<code>docker history</code>, or extract the layer tarball). Use BuildKit secret mounts (<code>RUN --mount=type=secret,id=pip_token …</code>) at build time, and inject runtime secrets from the orchestrator (Kubernetes Secrets, preferably synced from a secrets manager), never baked into the image.</p>
+        <p><b>"Works on my machine" differences.</b> Timezone and locale (the slim image is UTC with no locale, so date parsing changes), CA certificates missing on scratch or distroless images (TLS fails), DNS (Alpine's musl resolver behaves differently from glibc and some Python wheels don't exist for musl), and file permissions when the container runs as a different UID than the volume owner.</p>
+        <p><b>Disk fills up on the host.</b> Container stdout logs with no rotation, dangling images from CI builds, and data written into the writable layer instead of a volume. In Kubernetes this becomes <b>ephemeral-storage eviction</b>: the kubelet evicts pods when the node's disk crosses its threshold.</p>
+        <p><b>Supply chain.</b> Scan images in CI (Trivy, Grype, ECR scanning) and fail on critical CVEs with a fix available. Use minimal bases (distroless, Chainguard, <code>-slim</code>) so there's less to patch. Sign images (cosign) and verify signatures at admission if you need provenance. Drop Linux capabilities, use a read-only root filesystem, and never run <code>--privileged</code> or mount <code>/var/run/docker.sock</code> into an application container: either is effectively root on the host.</p>
+        <div class="note iq"><p class="nt">Interview angle</p><p>"A container works locally but crashes on the cluster with no logs." Walk the list in order: exit code and reason (137 OOM, or architecture mismatch giving exec format error), the image digest actually deployed versus the one you tested, environment and secrets that exist locally but not on the cluster, the non-root user unable to write to its working directory, and a read-only root filesystem.</p></div>
+        <div class="pn"></div>
+      </section>
+    </article>
+  </div></div>
+</main>
+
+<!-- ================= CH18 · KUBERNETES ================= -->
+<main class="page" id="page-ch18" data-ch="18" data-title="Kubernetes, beginning to depth">
+  <div class="wrap"><div class="ch-grid">
+    <aside class="side"></aside>
+    <article class="art">
+      <p class="crumb"><a href="#/">Contents</a> · Chapter 18 · Kubernetes, beginning to depth</p>
+
+      <section class="sec" id="s18-1" data-num="18.1" data-t="The control loop and the objects">
+        <p class="sec-num">18.1</p><h2>The control loop and the objects</h2>
+        <p>Kubernetes is a database of <b>desired state</b> plus a set of <b>controllers</b> that continuously make reality match it. You never tell it "start three containers". You write "there should be three replicas of this pod" to the API server, and a controller notices there are two and creates one. The same <b>reconcile loop</b> (observe, compare, act, repeat) runs everywhere in the system, which is why it heals itself and why it's eventually consistent: a change you apply is a request, not an instant fact.</p>
+        <p>The <b>control plane</b>: the <b>API server</b> (the only component that talks to storage, and the front door for everything), <b>etcd</b> (the consistent key-value store holding all state), the <b>scheduler</b> (assigns unscheduled pods to nodes) and the <b>controller manager</b> (runs the built-in reconcile loops). Each <b>node</b> runs the <b>kubelet</b> (makes the pods assigned to this node actually run, via containerd), <b>kube-proxy</b> or an eBPF replacement (implements Service routing) and a <b>CNI plugin</b> (gives each pod an IP).</p>
+        <p>The objects you'll use, from small to large:</p>
+        <div class="cs"><table><thead><tr><th>Object</th><th>What it is</th><th>Use it for</th></tr></thead><tbody>
+          <tr><td>Pod</td><td>One or more containers sharing a network namespace and volumes; the unit of scheduling</td><td>Never directly in production: a bare pod isn't recreated if its node dies</td></tr>
+          <tr><td>Deployment</td><td>Manages ReplicaSets to keep N identical, interchangeable pods, with rolling updates</td><td>Stateless services, APIs, stream consumers</td></tr>
+          <tr><td>StatefulSet</td><td>Pods with stable names (<code>kafka-0</code>), stable per-pod volumes and ordered rollout</td><td>Kafka, ZooKeeper, databases</td></tr>
+          <tr><td>DaemonSet</td><td>One pod per node</td><td>Log shippers, node exporters, CNI agents</td></tr>
+          <tr><td>Job / CronJob</td><td>Pods that run to completion, with retries; on a schedule</td><td>Batch ETL, backfills, dbt runs</td></tr>
+          <tr><td>Service</td><td>A stable virtual IP and DNS name in front of a changing set of pods selected by label</td><td>Anything another pod calls</td></tr>
+          <tr><td>Ingress / Gateway</td><td>HTTP routing from outside the cluster to Services</td><td>Public APIs, UIs</td></tr>
+          <tr><td>ConfigMap / Secret</td><td>Configuration and credentials mounted as files or env vars</td><td>Config that changes without rebuilding the image</td></tr>
+          <tr><td>PVC / PV</td><td>A claim for storage, bound to a volume (an EBS disk on AWS)</td><td>State that must survive pod restarts</td></tr>
+        </tbody></table></div>
+        <p>Labels are the glue. A Service doesn't list pods; it selects every pod with <code>app=orders-api</code>. A Deployment owns pods through a label selector. Get a label wrong and traffic goes nowhere, with no error anywhere.</p>
+        <div class="note iq"><p class="nt">Interview angle</p><p>"What happens when you run <code>kubectl apply -f deployment.yaml</code>?" The API server authenticates, authorises and runs admission (mutating then validating webhooks), then persists to etcd. The Deployment controller creates a ReplicaSet; the ReplicaSet controller creates Pod objects with no node; the scheduler filters and scores nodes and binds each pod; the kubelet on that node sees the binding, pulls the image, sets up networking through CNI and starts the containers; once readiness passes, the pod's IP is added to the Service's EndpointSlices. Every step is a controller reacting to a change.</p></div>
+        <div class="pn"></div>
+      </section>
+
+      <section class="sec" id="s18-2" data-num="18.2" data-t="Requests, limits, QoS and probes">
+        <p class="sec-num">18.2</p><h2>Requests, limits, QoS and probes</h2>
+        <p>Every container should declare <b>requests</b> and usually <b>limits</b>, and they do different jobs. <b>Requests</b> are what the <i>scheduler</i> reserves: a pod is placed only on a node with enough unreserved capacity, and a CPU request becomes the container's weight when CPU is contended. <b>Limits</b> are what the <i>kernel</i> enforces at runtime. The two resources fail differently. Go over the <b>CPU</b> limit and the container is <b>throttled</b>: slowed down, never killed. Go over the <b>memory</b> limit and it's <b>OOMKilled</b>, because memory can't be taken back from a running process.</p>
+        <p>The combination sets the pod's <b>QoS class</b>, which decides who is evicted first when a node runs short of memory: <b>Guaranteed</b> (requests equal limits for every container), <b>Burstable</b> (some requests set) and <b>BestEffort</b> (nothing set; first to go). Common production practice: set memory request equal to memory limit so the pod can't be surprised by node pressure, set a CPU request, and think hard before setting a CPU limit. CPU limits throttle latency-sensitive services even when the node has idle cores, because the quota is enforced per 100 ms period: a burst of GC threads can use the whole period's quota in 20 ms and then stall for 80.</p>
+        <div class="sim" id="sim-qos"></div>
+        <p><b>Probes</b> tell Kubernetes about health, and confusing them causes outages. The <b>readiness</b> probe decides whether the pod receives traffic: failing it removes the pod from the Service but leaves it running. The <b>liveness</b> probe decides whether to <i>restart</i> the container. The <b>startup</b> probe holds off the other two until a slow-starting app is up. The dangerous pattern is a liveness probe that checks a dependency (database, Kafka): when the database blips, every pod fails liveness at once and Kubernetes restarts the entire fleet, turning a short dependency hiccup into a full outage. Liveness should answer only "is this process wedged?"; dependency checks belong in readiness, if anywhere.</p>
+        <div class="note bad"><p class="nt">The classic gotcha</p><p>A JVM service with a 10-second liveness timeout and no startup probe. Under load, startup takes 90 seconds, liveness fails at 30, the container restarts and starts again from scratch: <code>CrashLoopBackOff</code> under exactly the conditions where you need more pods. Add a startup probe with a generous <code>failureThreshold × periodSeconds</code>.</p></div>
+        <div class="pn"></div>
+      </section>
+
+      <section class="sec" id="s18-3" data-num="18.3" data-t="Networking, storage and config">
+        <p class="sec-num">18.3</p><h2>Networking, storage and config</h2>
+        <p><b>Every pod gets its own IP</b>, and every pod can reach every other pod without NAT. That's the Kubernetes network model; the CNI plugin implements it. Pod IPs are ephemeral, so clients use a <b>Service</b>: a stable ClusterIP and a DNS name (<code>orders-api.<wbr>payments.<wbr>svc.<wbr>cluster.<wbr>local</code>) that load-balances across the ready pods behind it. A <b>headless</b> Service (no ClusterIP) instead returns each pod's address, which is what StatefulSets like Kafka need so a client can reach <code>kafka-2</code> specifically. <b>NetworkPolicies</b> restrict which pods may talk to which; without them, everything in the cluster can reach everything.</p>
+        <p><b>DNS is a quiet source of latency.</b> Pod <code>resolv.conf</code> defaults to <code>ndots:5</code> with several search domains, so a lookup for <code>api.example.com</code> (two dots) is first tried as <code>api.<wbr>example.<wbr>com.<wbr>payments.<wbr>svc.<wbr>cluster.<wbr>local</code> and three more suffixes before the real name: five or more queries per lookup, each doubled for IPv4 and IPv6. Under load this saturates CoreDNS and shows up as intermittent 5-second timeouts. Fixes: use fully qualified names with a trailing dot, lower <code>ndots</code> in the pod's <code>dnsConfig</code>, and run NodeLocal DNSCache.</p>
+        <p><b>Storage.</b> A <b>PersistentVolumeClaim</b> asks for storage of a <b>StorageClass</b> (on EKS, an EBS gp3 volume through the EBS CSI driver). An EBS volume lives in <b>one availability zone</b> and attaches to one node at a time, so a pod with an EBS volume can only be rescheduled to a node in that zone. If that zone has no capacity, the pod stays Pending. Use <code>volumeBindingMode: WaitForFirstConsumer</code> so the volume is created in the zone where the pod lands, and keep spare capacity per zone for stateful workloads. Use EFS or S3 when many pods need shared data.</p>
+        <p><b>Config.</b> ConfigMaps and Secrets mounted as <i>files</i> update in the pod eventually after you change them; mounted as <i>env vars</i> they never update until the pod restarts. Kubernetes Secrets are base64-encoded, not encrypted, unless envelope encryption with KMS is enabled; on AWS, store the source of truth in Secrets Manager and sync it in with the External Secrets Operator or the Secrets Store CSI driver.</p>
+        <div class="note iq"><p class="nt">Interview angle</p><p>"How does a request from pod A reach pod B through a Service?" Pod A resolves the Service name with CoreDNS and gets the ClusterIP. That IP doesn't belong to any machine: kube-proxy (iptables or IPVS rules) or an eBPF data plane like Cilium on A's node rewrites the destination to one of the ready pod IPs from the Service's EndpointSlices. The packet then travels over the CNI's pod network to B's node.</p></div>
+        <div class="pn"></div>
+      </section>
+
+      <section class="sec" id="s18-4" data-num="18.4" data-t="Deploying safely and debugging pods">
+        <p class="sec-num">18.4</p><h2>Deploying safely and debugging pods</h2>
+        <p>A Deployment's <b>rolling update</b> replaces pods gradually, controlled by <code>maxSurge</code> (extra pods allowed above the desired count) and <code>maxUnavailable</code> (pods allowed below it). It only moves on when new pods pass readiness, so a bad readiness probe either stalls the rollout (good) or lets a broken version through (if the probe checks nothing). <code>kubectl rollout undo</code> returns to the previous ReplicaSet. For riskier changes, use a <b>canary</b> (a small share of traffic to the new version, promoted on metrics, often with Argo Rollouts or Flagger) or <b>blue/green</b> (a full second copy, switched at once).</p>
+        <p><b>Graceful shutdown</b> is where zero-downtime deploys usually fail. When a pod is deleted, two things happen in parallel: the kubelet sends <code>SIGTERM</code>, and the endpoint controller removes the pod from Services. If the app exits before every node's routing has caught up, in-flight requests hit a closed socket and clients see 502s. Add a short <code>preStop</code> sleep (5–10 s) so routing updates first, handle <code>SIGTERM</code> by draining, and set <code>terminationGracePeriodSeconds</code> longer than your slowest request or batch commit.</p>
+        <p>Protect capacity during maintenance with a <b>PodDisruptionBudget</b> (for example <code>minAvailable: 2</code>), which limits how many pods voluntary disruptions such as node drains and upgrades can evict at once. Scale with the <b>HorizontalPodAutoscaler</b> (more pods from CPU, memory or custom metrics such as Kafka consumer lag, often through KEDA) and the node autoscaler (Cluster Autoscaler or Karpenter adds nodes when pods are Pending).</p>
+        <div class="sim" id="sim-triage"></div>
+        <div class="note bad"><p class="nt">The classic gotcha</p><p>A PDB with <code>maxUnavailable: 0</code>, or <code>minAvailable</code> equal to the replica count, can never be satisfied. Node drains hang forever and a cluster upgrade stalls halfway with mixed node versions. The same happens when a single-replica Deployment has <code>minAvailable: 1</code>. Every PDB must allow at least one disruption.</p></div>
+        <div class="note iq"><p class="nt">Interview angle</p><p>"A deploy just went out and error rates are up. What do you do?" Roll back first (<code>kubectl rollout undo</code> or revert in GitOps), confirm the error rate recovers, then investigate with the evidence you preserved: the diff between the two ReplicaSets, events, logs from the new pods and the image digest. Mitigation before diagnosis is the answer that signals production experience.</p></div>
+        <div class="pn"></div>
+      </section>
+    </article>
+  </div></div>
+</main>
+
+<!-- ================= CH19 · EKS AND EMR ================= -->
+<main class="page" id="page-ch19" data-ch="19" data-title="EKS &amp; EMR on AWS">
+  <div class="wrap"><div class="ch-grid">
+    <aside class="side"></aside>
+    <article class="art">
+      <p class="crumb"><a href="#/">Contents</a> · Chapter 19 · EKS &amp; EMR on AWS</p>
+
+      <section class="sec" id="s19-1" data-num="19.1" data-t="EKS: what AWS runs and what you run">
+        <p class="sec-num">19.1</p><h2>EKS: what AWS runs and what you run</h2>
+        <p><b>Amazon EKS</b> is managed Kubernetes. AWS runs the <b>control plane</b> (API servers and etcd across three availability zones, patched and backed up for you) and charges a per-cluster hourly fee. You run the <b>data plane</b>, in one of four ways: <b>managed node groups</b> (EC2 Auto Scaling groups that EKS creates and can roll during upgrades), <b>self-managed nodes</b>, <b>Fargate</b> (a micro-VM per pod; no nodes to manage, but no DaemonSets, no GPUs and slower starts), or <b>EKS Auto Mode</b>, where AWS also manages nodes, the CNI, storage drivers and the load balancer controller.</p>
+        <p><b>Karpenter</b> is the node autoscaler most EKS teams now use instead of Cluster Autoscaler. Cluster Autoscaler grows pre-defined node groups; Karpenter looks at Pending pods and launches whichever EC2 instance types fit them best, across Spot and On-Demand, and consolidates underused nodes. That flexibility is what makes Spot workable for Spark executors and stream workers.</p>
+        <p><b>Networking: the VPC CNI.</b> By default, every pod gets a real VPC IP address from the node's subnet, attached through the node's elastic network interfaces. Pods are first-class on the VPC (security groups, flow logs, no overlay), but it has two sharp edges. <b>Subnet exhaustion</b>: a /24 has about 250 usable addresses, and each node pre-allocates a warm pool of IPs, so a busy cluster runs out of addresses long before it runs out of CPU, and new pods sit in <code>ContainerCreating</code> with "failed to assign an IP address". <b>Max pods per node</b> is capped by the instance type's ENI and IP limits, so a small instance holds far fewer pods than its CPU could. Fixes: plan large subnets up front (or add a secondary CIDR such as 100.64.0.0/10 for pods), enable <b>prefix delegation</b> (a /28 per ENI slot), and tune <code>WARM_IP_TARGET</code>.</p>
+        <p><b>Identity: two directions.</b> <i>Who can use the cluster</i>: IAM principals are mapped to Kubernetes RBAC through <b>access entries</b>, which replaced the old <code>aws-auth</code> ConfigMap (a single YAML file where one bad edit could lock every admin out of the cluster). <i>What pods can do in AWS</i>: <b>EKS Pod Identity</b> or the older <b>IRSA</b> (IAM roles for service accounts) give each service account its own IAM role, with temporary credentials. The anti-pattern is giving the node's instance role S3 and DynamoDB access, because then every pod on that node inherits it.</p>
+        <div class="note iq"><p class="nt">Interview angle</p><p>"Pods are stuck in ContainerCreating on EKS but the nodes have free CPU." Describe the pod: if the event says it can't assign an IP, it's subnet or ENI exhaustion in the VPC CNI. Check free IPs in the node subnets and the instance type's max pods. Fix with prefix delegation or a secondary CIDR, and say you'd add an alarm on available subnet IPs so it's caught before it pages.</p></div>
+        <div class="pn"></div>
+      </section>
+
+      <section class="sec" id="s19-2" data-num="19.2" data-t="EKS upgrades without an outage">
+        <p class="sec-num">19.2</p><h2>EKS upgrades without an outage</h2>
+        <p>Kubernetes ships a minor version roughly every four months, and EKS supports each one for about 14 months of standard support, followed by a paid extended-support period. Upgrades are therefore routine, frequent and impossible to skip: the control plane moves <b>one minor version at a time</b>, and nodes can lag the control plane only by a limited skew. A team that ignores upgrades eventually faces several back-to-back jumps or a large extended-support bill.</p>
+        <p>The safe order:</p>
+        <div class="stepper">
+          <div class="stp done"><span class="n">1</span><span class="lb">Read the changelog for removed APIs<small>Scan manifests and Helm charts with <code>pluto</code> or <code>kubent</code>; check EKS upgrade insights. A removed API version makes later deploys fail.</small></span></div>
+          <div class="stp done"><span class="n">2</span><span class="lb">Upgrade a non-production cluster first<small>Run real workloads on it for days, including a node drain, and test the add-ons you depend on.</small></span></div>
+          <div class="stp done"><span class="n">3</span><span class="lb">Upgrade the control plane<small>EKS does this in place. Your workloads keep running; the API is briefly less available.</small></span></div>
+          <div class="stp done"><span class="n">4</span><span class="lb">Upgrade add-ons to compatible versions<small>VPC CNI, CoreDNS, kube-proxy, EBS CSI driver, load balancer controller, Karpenter, metrics-server.</small></span></div>
+          <div class="stp done"><span class="n">5</span><span class="lb">Roll the nodes<small>Cordon and drain old nodes in batches; PDBs pace the evictions. Or use a blue/green node group and move workloads over.</small></span></div>
+        </div>
+        <p>What actually breaks: <b>removed API versions</b> (deploy pipelines fail after the upgrade, not during it); <b>PDBs that block drains</b>; <b>add-ons pinned to old versions</b>; <b>webhooks</b> whose backing pods are down, which makes the API server reject every create or update they intercept; and <b>implicit dependencies on behaviour that changed</b>, such as node labels, as in the Reddit outage in §21.4. Many teams sidestep in-place risk with <b>blue/green clusters</b>: build a new cluster at the new version, shift traffic gradually, delete the old one. That needs GitOps (Argo CD or Flux) so the second cluster is reproducible from Git rather than from memory.</p>
+        <div class="note iq"><p class="nt">Interview angle</p><p>"How do you upgrade a production EKS cluster?" Give the order above, then the two strategies (in-place with node-group rolls, or blue/green clusters) and when you'd pick each. Mention API deprecation scanning and PDBs by name. Saying "I'd click upgrade in the console" without a staging cluster or a rollback story is the answer that loses.</p></div>
+        <div class="pn"></div>
+      </section>
+
+      <section class="sec" id="s19-3" data-num="19.3" data-t="EMR: three ways to run Spark on AWS">
+        <p class="sec-num">19.3</p><h2>EMR: three ways to run Spark on AWS</h2>
+        <p><b>Amazon EMR</b> runs open-source big-data engines (Spark, Hive, Trino, Flink, HBase) with AWS-tuned builds and S3 integration. It comes in three deployment shapes, and choosing between them is a common design question.</p>
+        <div class="cs"><table><thead><tr><th>Option</th><th>What you manage</th><th>Pick it when</th><th>Watch out for</th></tr></thead><tbody>
+          <tr><td>EMR on EC2</td><td>Clusters of EC2 instances running YARN; you size and configure them</td><td>Long-running or heavy clusters, custom config, HBase, maximum control and Spot savings</td><td>Idle clusters cost money; you tune YARN and Spark yourself</td></tr>
+          <tr><td>EMR Serverless</td><td>Only the application and job; AWS provisions workers per job</td><td>Spiky or infrequent batch jobs; small teams with no cluster ops</td><td>Less tuning control; cold start; cost per job can exceed a well-packed cluster</td></tr>
+          <tr><td>EMR on EKS</td><td>Spark pods on your EKS cluster, with EMR's runtime</td><td>You already run EKS and want one compute pool and one ops model for services and Spark</td><td>You need Kubernetes expertise; shuffle on ephemeral pods; executor pod startup</td></tr>
+        </tbody></table></div>
+        <p>On <b>EMR on EC2</b>, a cluster has three node types. The <b>primary</b> node runs the YARN ResourceManager and HDFS NameNode; lose it and the cluster is gone unless you configured three primaries. <b>Core</b> nodes run executors <i>and</i> store HDFS blocks, so losing one loses data and shrinking them is slow. <b>Task</b> nodes run executors only and store nothing. Put Spot on task nodes, keep core nodes on On-Demand, and use <b>instance fleets</b> with several instance types so a Spot shortage in one type doesn't stall the job. Use S3 (not HDFS) as the durable store, and treat clusters as disposable: one transient cluster per pipeline, created by the orchestrator, terminated on completion.</p>
+        <div class="note iq"><p class="nt">Interview angle</p><p>"EMR on EC2, Serverless, or on EKS?" Start from workload shape and team: steady heavy batch with tuning needs points to EC2 with Spot task fleets; bursty jobs and no platform team point to Serverless; an organisation already standardised on EKS points to EMR on EKS. Pinterest's move of its Spark platform from Hadoop to EKS (§22.3) is a good story to cite.</p></div>
+        <div class="pn"></div>
+      </section>
+
+      <section class="sec" id="s19-4" data-num="19.4" data-t="EMR failure cases and fixes">
+        <p class="sec-num">19.4</p><h2>EMR failure cases and fixes</h2>
+        <p><b>"Container killed by YARN for exceeding memory limits. 10.4 GB of 10 GB physical memory used. Consider boosting spark.executor.memoryOverhead."</b> YARN sizes each executor container as heap plus <b>overhead</b> (by default the larger of 384 MB or 10% of executor memory). Overhead covers off-heap allocations: Python worker processes in PySpark, Arrow buffers for pandas UDFs, netty shuffle buffers. PySpark jobs exceed it routinely. Raise <code>spark.executor.memoryOverhead</code> (or set <code>spark.executor.pyspark.memory</code>), use fewer cores per executor so fewer Python workers share it, and fix the skewed partition that's usually the real cause (Chapter 6).</p>
+        <p><b>Executors lost on Spot reclaim, then FetchFailedException.</b> When a Spot node is reclaimed, its executors die, and so do the shuffle files they wrote; downstream stages fail to fetch them and recompute whole stages. Enable Spark's <b>graceful decommissioning</b> so shuffle blocks migrate when the two-minute interruption notice arrives, keep shuffle-heavy stages on On-Demand, or use a remote shuffle service so shuffle data outlives executors.</p>
+        <p><b>S3 503 "Slow Down".</b> S3 scales request rate <i>per prefix</i> (about 3,500 writes and 5,500 reads per second per prefix), and a job with thousands of tasks writing to one partition prefix hits it. Spread writes across prefixes, cut the number of output files (repartition before writing), and raise EMRFS retry settings. The deeper fix is fewer, larger files, which also fixes read performance.</p>
+        <p><b>Cluster stuck in "Starting" or terminates with VALIDATION_ERROR or BOOTSTRAP_FAILURE.</b> A bootstrap action failed (a pip install that hits an unreachable mirror is the classic), the subnet has no free IPs or the requested instance type has no capacity in that AZ, or the IAM roles lack permissions. Bake dependencies into a custom AMI or a container image instead of installing them at boot, and give instance fleets several instance types and subnets.</p>
+        <p><b>Disk full on core nodes.</b> Shuffle spill and YARN logs fill local disks, nodes are marked unhealthy, YARN stops scheduling on them and the job crawls. Size EBS volumes for shuffle, reduce spill (more partitions, less skew) and ship logs to S3.</p>
+        <p><b>Idle clusters.</b> A long-running cluster no one uses is the most common EMR cost incident. Set an auto-termination idle timeout on every cluster and use managed scaling so the cluster shrinks between jobs.</p>
+        <div class="note bad"><p class="nt">The classic gotcha</p><p>Managed scaling removes a <b>core</b> node while it holds the only replica of some HDFS blocks, or while jobs still need intermediate data stored there, and the job fails. Keep the core node count fixed and small, scale only task nodes, and keep durable data in S3.</p></div>
+        <div class="pn"></div>
+      </section>
+    </article>
+  </div></div>
+</main>
+
+<!-- ================= CH20 · KAFKA IN DEPTH ================= -->
+<main class="page" id="page-ch20" data-ch="20" data-title="Kafka in depth">
+  <div class="wrap"><div class="ch-grid">
+    <aside class="side"></aside>
+    <article class="art">
+      <p class="crumb"><a href="#/">Contents</a> · Chapter 20 · Kafka in depth</p>
+
+      <section class="sec" id="s20-1" data-num="20.1" data-t="Storage and replication internals">
+        <p class="sec-num">20.1</p><h2>Storage and replication internals</h2>
+        <p>§8.1 introduced the log: topics split into partitions, each an append-only, ordered sequence of records addressed by offset. This chapter goes underneath. On disk, each partition is a directory of <b>segments</b>: a <code>.log</code> file of record batches plus an offset index and a time index. Only the newest (active) segment is written to. Retention deletes or compacts whole <i>closed</i> segments, which is why a topic with <code>retention.ms</code> of one hour can keep data much longer if a segment takes a day to fill (<code>segment.ms</code> and <code>segment.bytes</code> control rolling). Reads are fast because they're sequential and served from the OS page cache, and the broker sends bytes from page cache to socket without copying them through the JVM.</p>
+        <p><b>Replication.</b> Each partition has one <b>leader</b> and <code>replication.factor − 1</code> <b>followers</b> on other brokers, ideally in other racks or AZs (<code>broker.rack</code>). Producers and consumers talk to the leader (consumers can read from a nearby follower with rack-aware fetching). Followers pull from the leader. The <b>in-sync replicas (ISR)</b> are the replicas that have caught up within <code>replica.lag.time.max.ms</code>. The <b>high watermark</b> is the highest offset copied to every ISR member, and consumers only see records below it, so a consumer never reads something that could vanish in a leader failover.</p>
+        <p><b>Durability is three settings working together.</b> <code>replication.factor=3</code>, <code>min.insync.replicas=2</code> and producer <code>acks=all</code>. With those, a write is acknowledged only once at least two replicas have it, so any single broker can die without losing acknowledged data. If the ISR shrinks below 2, producers with <code>acks=all</code> get <code>NotEnoughReplicas</code> errors: Kafka chooses unavailability over silent loss. <code>unclean.leader.election.enable=false</code> (the default) keeps that promise by refusing to elect an out-of-sync replica as leader.</p>
+        <p><b>Metadata: KRaft.</b> Kafka used to keep cluster metadata in ZooKeeper. KRaft moves it into an internal Raft-replicated log run by a quorum of controller nodes, which makes failover faster and supports far more partitions. Kafka 4.0 removed ZooKeeper mode entirely, so a ZooKeeper cluster must migrate to KRaft on 3.x before upgrading.</p>
+        <div class="note iq"><p class="nt">Interview angle</p><p>"How do you guarantee no data loss in Kafka?" Say the three settings and what each covers, then the trade-off: with <code>min.insync.replicas=2</code> on RF 3, losing two brokers blocks writes to affected partitions. Then go past the broker: the producer needs retries with idempotence, and the consumer must commit offsets only after processing (§20.3). Loss usually happens at the edges, not inside Kafka.</p></div>
+        <div class="pn"></div>
+      </section>
+
+      <section class="sec" id="s20-2" data-num="20.2" data-t="Producers: batching, ordering and idempotence">
+        <p class="sec-num">20.2</p><h2>Producers: batching, ordering and idempotence</h2>
+        <p>A producer picks the partition from the key (a hash of the key modulo the partition count; no key spreads records across partitions in sticky batches), buffers records per partition and sends a <b>batch</b> when it reaches <code>batch.size</code> or <code>linger.ms</code> expires. Raising <code>linger.ms</code> from 0 to 5–20 ms and enabling compression (<code>lz4</code> or <code>zstd</code>) usually multiplies throughput for a few milliseconds of latency, because compression works on whole batches.</p>
+        <p><b>Ordering is per partition only</b>, and only for records with the same key landing on the same partition. Two traps follow. First, <b>adding partitions changes the key-to-partition mapping</b>, so after an increase, new events for a key go to a different partition than old ones and per-key order across that moment is lost. Pick the partition count up front for keyed topics. Second, retries could reorder batches when several are in flight, which is why the <b>idempotent producer</b> exists.</p>
+        <p><b>Idempotence</b> (<code>enable.idempotence=true</code>, the default since Kafka 3.0) gives each producer an id and each batch a sequence number per partition. The broker drops duplicates from retries and rejects out-of-order sequences, so retries can't create duplicates or reorder, even with up to five requests in flight. It covers one producer session against one partition. <b>Transactions</b> (<code>transactional.id</code>) extend that to atomic writes across partitions plus the consumer's offset commit: consume, process, produce and commit offsets as one unit, which is the basis of Kafka Streams' and Flink's exactly-once (§8.3). Consumers must read with <code>isolation.level=read_committed</code> to skip aborted writes.</p>
+<pre><code><span class="c"># a durable, high-throughput producer</span>
+acks=all
+enable.idempotence=true
+max.in.flight.requests.per.connection=5   <span class="c"># &lt;= 5 keeps ordering with idempotence</span>
+linger.ms=10
+batch.size=131072
+compression.type=zstd
+delivery.timeout.ms=120000               <span class="c"># total time to keep retrying before failing the send</span></code></pre>
+        <div class="note bad"><p class="nt">The classic gotcha</p><p>Calling <code>producer.send()</code> and never checking the result. Sends are asynchronous; an error after retries are exhausted arrives on the callback or future. If the app ignores it, or exits without <code>flush()</code>, buffered records are silently lost. Always handle the callback, and flush or close the producer on shutdown.</p></div>
+        <div class="pn"></div>
+      </section>
+
+      <section class="sec" id="s20-3" data-num="20.3" data-t="Consumers: groups, rebalances and commits">
+        <p class="sec-num">20.3</p><h2>Consumers: groups, rebalances and commits</h2>
+        <p>Consumers in the same <b>group</b> split a topic's partitions between them: each partition goes to exactly one consumer in the group, so the partition count is the maximum useful parallelism. A consumer's progress is its <b>committed offset</b> per partition, stored in the internal <code>__consumer_offsets</code> topic. When it restarts, it resumes from the committed offset, and <i>when</i> you commit decides your delivery semantics.</p>
+        <div class="sim" id="sim-commit"></div>
+        <p><b>Rebalances</b> reassign partitions when a consumer joins, leaves or is presumed dead. A consumer is presumed dead if it misses heartbeats for <code>session.timeout.ms</code>, or if it doesn't call <code>poll()</code> within <code>max.poll.interval.ms</code> (five minutes by default). The second causes the infamous <b>rebalance storm</b>: a batch takes longer than the poll interval to process, the consumer is kicked out, its partitions move, the new owner reprocesses the uncommitted batch, also takes too long, and the group never makes progress. Fix it by lowering <code>max.poll.records</code>, making processing faster, or raising <code>max.poll.interval.ms</code>.</p>
+        <p>The classic <b>eager</b> rebalance protocol stops every consumer in the group while partitions move. Three improvements reduce the pain: the <b>cooperative sticky</b> assignor moves only the partitions that must change; <b>static membership</b> (<code>group.instance.id</code>) lets a restarting pod reclaim its partitions without a rebalance, which makes rolling deploys on Kubernetes much calmer; and the newer consumer group protocol (KIP-848) moves assignment to the broker and makes rebalances incremental by default.</p>
+        <p><b>Consumer lag</b> is the gap between the latest offset and the committed offset, per partition. It's the most important streaming health metric: rising lag means the consumers can't keep up. Alert on lag expressed as <i>time</i> (how old the oldest unprocessed record is), not raw message count, since a count means different things on different topics. Scale consumers up to the partition count, then speed up processing; past that, only more partitions help.</p>
+        <div class="note iq"><p class="nt">Interview angle</p><p>"Consumers keep rebalancing and lag grows. What's happening?" Ask for the logs first: "member left the group because poll timeout expired" points to <code>max.poll.interval.ms</code> and slow processing; heartbeat timeouts point to GC pauses or CPU throttling (a Kubernetes CPU limit, §18.2); rebalances at every deploy point to missing static membership. Each has a different fix.</p></div>
+        <div class="pn"></div>
+      </section>
+
+      <section class="sec" id="s20-4" data-num="20.4" data-t="Operating Kafka: design and edge cases">
+        <p class="sec-num">20.4</p><h2>Operating Kafka: design and edge cases</h2>
+        <p><b>Partition count.</b> Enough for target consumer parallelism and throughput (a partition handles on the order of 10 MB/s comfortably; measure on your hardware), with headroom, because increasing it later breaks key ordering. Not wildly more: every partition costs file handles, memory, and leader-election and recovery time.</p>
+        <p><b>Hot partitions.</b> One key carries a large share of traffic (a giant merchant, a bot user, a <code>null</code> key that every bad record shares), so one partition, one broker and one consumer saturate while the others idle. Detect it with per-partition byte rates and per-partition lag. Fix it by salting the key (<code>merchant_id + random(0..N)</code>), accepting the loss of strict per-key order, or by routing known heavy keys to a dedicated topic.</p>
+        <p><b>Poison pills.</b> One record that can't be deserialised or processed blocks its partition forever if the consumer retries in place. Uber's answer, now standard, is a ladder of <b>retry topics</b> with growing delays and a final <b>dead letter queue</b> (§22.1): failed records move aside, the partition keeps flowing, and the DLQ is monitored and replayed after a fix.</p>
+        <p><b>Schemas.</b> Use a schema registry with Avro or Protobuf and enforce a compatibility mode (usually BACKWARD) on each subject, so a producer can't deploy a breaking change such as removing a required field or changing a type. That's the streaming version of the schema-drift problem in Chapter 3.</p>
+        <p><b>Compaction.</b> <code>cleanup.policy=compact</code> keeps the latest record per key, and a record with a null value (a <b>tombstone</b>) deletes the key after <code>delete.retention.ms</code>. It's the right store for changelogs and CDC state. Edge cases: compaction never touches the active segment, so "latest only" is eventual; and consumers that are offline longer than <code>delete.retention.ms</code> can miss tombstones and keep deleted keys forever.</p>
+        <p><b>Running it.</b> Managed (Amazon MSK, Confluent Cloud) removes broker operations; self-managed on Kubernetes uses an operator such as <b>Strimzi</b>, StatefulSets, a PDB that allows one broker down, and rack awareness mapped to AZs. <b>Tiered storage</b> (KIP-405, which Uber drove upstream) moves older segments to object storage, so brokers keep only recent data on local disk, recover faster and decouple retention from disk size. Cross-region replication uses MirrorMaker 2 or Uber's uReplicator design; plan for offset translation on failover because offsets differ between clusters.</p>
+        <div class="note iq"><p class="nt">Interview angle</p><p>"Design the Kafka topic for ride events." Give the key (<code>ride_id</code>, for per-ride order), partition count from throughput and consumer parallelism with headroom, RF 3 with <code>min.insync.replicas=2</code> across AZs, retention from the replay window you need, the schema and its compatibility rule, the DLQ path, and the lag alert. Ending with how you'd replay after a bad deploy (reset the group's offsets to a timestamp) shows you've operated one.</p></div>
+        <div class="pn"></div>
+      </section>
+    </article>
+  </div></div>
+</main>
+
+<!-- ================= CH21 · PRODUCTION FAILURES CASEBOOK ================= -->
+<main class="page" id="page-ch21" data-ch="21" data-title="Production failures casebook">
+  <div class="wrap"><div class="ch-grid">
+    <aside class="side"></aside>
+    <article class="art">
+      <p class="crumb"><a href="#/">Contents</a> · Chapter 21 · Production failures casebook</p>
+
+      <section class="sec" id="s21-1" data-num="21.1" data-t="How to handle a production incident">
+        <p class="sec-num">21.1</p><h2>How to handle a production incident</h2>
+        <p>Interviewers ask about failures because they show judgement under pressure better than any design question. The structure they're listening for is always the same, whatever broke.</p>
+        <div class="stepper">
+          <div class="stp done"><span class="n">1</span><span class="lb">Detect and declare<small>An alert or a user report. Name an incident lead and open one channel. Write a timeline as you go.</small></span></div>
+          <div class="stp done"><span class="n">2</span><span class="lb">Size the blast radius<small>Who and what is affected: one pipeline or every consumer, one region or all, data delayed or data wrong.</small></span></div>
+          <div class="stp done"><span class="n">3</span><span class="lb">Mitigate before you diagnose<small>Roll back the last change, fail over, pause the pipeline so it stops writing bad data, scale up. Stop the bleeding first.</small></span></div>
+          <div class="stp done"><span class="n">4</span><span class="lb">Find the root cause<small>Use the evidence you preserved: diffs, events, logs, metrics around the first bad minute. Ask "what changed?".</small></span></div>
+          <div class="stp done"><span class="n">5</span><span class="lb">Repair the data<small>Backfill or reprocess the affected window, idempotently (§10.2). Tell downstream owners what was wrong and when it was fixed.</small></span></div>
+          <div class="stp done"><span class="n">6</span><span class="lb">Blameless postmortem<small>Timeline, root cause and contributing factors, what went well, and owned, dated action items that stop the whole class of failure.</small></span></div>
+        </div>
+        <p>Two habits separate senior answers. <b>"What changed?"</b> comes first, because most incidents follow a deploy, a config change, a dependency upgrade or a data change upstream. And <b>for data, wrong is worse than late</b>: if a pipeline is writing incorrect numbers, pausing it and letting a dashboard go stale is usually the right call, because bad data spreads into downstream tables, models and decisions, and every copy has to be found and repaired.</p>
+        <div class="note iq"><p class="nt">Interview angle</p><p>"Tell me about a production failure you handled." Use the six steps as your outline, with numbers: how it was detected and how long that took, the blast radius, the mitigation and time to mitigate, the root cause in one sentence, the data repair, and the one action item that prevents the class of failure. End with what you'd do differently. That last part is what the interviewer is really scoring.</p></div>
+        <div class="pn"></div>
+      </section>
+
+      <section class="sec" id="s21-2" data-num="21.2" data-t="Deployment and installation failures">
+        <p class="sec-num">21.2</p><h2>Deployment and installation failures</h2>
+        <p>The failures you'll actually meet when shipping to Kubernetes, EKS and Helm, by symptom. The first column is what you see; the fix column lists the usual causes in order of likelihood.</p>
+        <div class="cs"><table><thead><tr><th>Symptom</th><th>Likely cause</th><th>Fix</th></tr></thead><tbody>
+          <tr><td>ImagePullBackOff</td><td>Wrong tag or digest; no pull permission (ECR policy, node role, expired pull secret); image built for the wrong architecture is a different error but often found here</td><td><code>kubectl describe pod</code> shows the registry error. Check the image exists, the node or service account can pull it, and the registry is reachable from private subnets (VPC endpoints or NAT)</td></tr>
+          <tr><td>CrashLoopBackOff</td><td>App exits at startup: missing env var or secret, bad config, failed DB connection, liveness probe killing a slow start</td><td><code>kubectl logs --previous</code> for the crashed container; check exit code; add a startup probe</td></tr>
+          <tr><td>CreateContainerConfigError</td><td>A referenced Secret or ConfigMap, or a key in it, doesn't exist in that namespace</td><td>Create it, or fix the name and key; deploy config before the workload in your pipeline</td></tr>
+          <tr><td>Pending</td><td>No node fits the requests; node selector, affinity or taint with no match; PVC in a zone with no capacity; IP exhaustion</td><td>Events on the pod say which. Lower requests, fix selectors and tolerations, check the autoscaler's logs</td></tr>
+          <tr><td>OOMKilled (exit 137)</td><td>Memory limit below real peak use; memory leak; JVM heap sized to the node, not the container</td><td>Measure peak, raise the limit with headroom, set <code>MaxRAMPercentage</code>, profile the leak</td></tr>
+          <tr><td>Running but 503 / no endpoints</td><td>Service selector doesn't match pod labels; readiness probe failing; wrong <code>targetPort</code></td><td><code>kubectl get endpointslices</code>; compare labels; test the readiness path from inside the pod</td></tr>
+          <tr><td>502s during every deploy</td><td>Pods exit before load balancers and kube-proxy stop routing to them</td><td><code>preStop</code> sleep, handle <code>SIGTERM</code> by draining, longer grace period (§18.4)</td></tr>
+          <tr><td>"failed calling webhook"</td><td>An admission webhook's service is down (or its certificate expired), and its <code>failurePolicy: Fail</code> blocks creates cluster-wide</td><td>Restore the webhook's pods or temporarily delete the webhook configuration; run webhooks with several replicas and exclude system namespaces</td></tr>
+          <tr><td>Helm: "another operation is in progress"</td><td>A previous release was interrupted and left in <code>pending-upgrade</code> or <code>pending-install</code></td><td><code>helm history</code>, then <code>helm rollback</code> to the last good revision; use <code>--atomic</code> and <code>--timeout</code> in CI</td></tr>
+          <tr><td>"no matches for kind … in version …"</td><td>The manifest uses an API version the cluster removed, or a CRD isn't installed yet</td><td>Update the <code>apiVersion</code>; install CRDs before the charts that use them; scan with <code>pluto</code> before upgrades</td></tr>
+          <tr><td>Terraform: state lock / drift</td><td>A crashed run holds the lock; someone changed resources by hand</td><td>Confirm no run is active, then <code>force-unlock</code>; run <code>plan</code> to see drift and bring the change into code</td></tr>
+          <tr><td>Nodes NotReady after a change</td><td>Kubelet or CNI broken by an AMI or OS update; disk or memory pressure; expired node certificates</td><td>Describe the node; check kubelet and CNI logs; roll back the AMI; stagger OS updates</td></tr>
+          <tr><td>TLS errors everywhere at once</td><td>An expired certificate (ingress, webhook, internal CA, Kafka listeners)</td><td>Renew; then automate it (cert-manager) and alert 30 days before expiry</td></tr>
+        </tbody></table></div>
+        <div class="note bad"><p class="nt">The classic gotcha</p><p>A database migration bundled into the app's startup. Ten replicas start at once, all try to migrate, one takes a lock, the others hang on it, fail their startup probes and restart, and the deploy never finishes. Run migrations once as a separate Job (or a Helm pre-upgrade hook) and make them backward-compatible with the running version, so the old and new pods can share the schema during the rollout.</p></div>
+        <div class="pn"></div>
+      </section>
+
+      <section class="sec" id="s21-3" data-num="21.3" data-t="Data pipeline and Kafka failures">
+        <p class="sec-num">21.3</p><h2>Data pipeline and Kafka failures</h2>
+        <div class="cs"><table><thead><tr><th>Symptom</th><th>Root cause</th><th>Solution</th></tr></thead><tbody>
+          <tr><td>Data missing after consumer deploy</td><td>New consumer group id with <code>auto.offset.reset=latest</code>: it started at the end and skipped everything produced while it was down</td><td>Reset the group's offsets to a timestamp before the gap and reprocess; set <code>earliest</code> for new groups that must not lose data</td></tr>
+          <tr><td>Duplicates after a restart</td><td>Processed records, crashed before committing; at-least-once delivery working as designed</td><td>Make the sink idempotent: upsert or <code>MERGE</code> on a key, or dedup on an event id</td></tr>
+          <tr><td>Lag grows, then rebalance storm</td><td>Processing per poll exceeds <code>max.poll.interval.ms</code>; or GC pauses or CPU throttling miss heartbeats</td><td>Smaller <code>max.poll.records</code>, faster processing, static membership; remove CPU limits from consumers</td></tr>
+          <tr><td>One partition lags, others fine</td><td>Hot key or poison-pill record blocking the partition</td><td>Salt hot keys; retry topics and a DLQ for bad records</td></tr>
+          <tr><td>Consumers fail after producer deploy</td><td>Incompatible schema change (field removed, type changed)</td><td>Roll back the producer; enforce compatibility in the schema registry; CI check on schema changes</td></tr>
+          <tr><td>Producers fail with NotEnoughReplicas</td><td>ISR shrank below <code>min.insync.replicas</code>: broker down, disk full, network partition</td><td>Restore brokers or disk; never "fix" it by lowering durability settings in an incident without deciding the trade-off</td></tr>
+          <tr><td>Kafka disk full</td><td>Retention by size not set; a topic with far more traffic than planned; a compacted topic that can't compact</td><td>Add retention bytes, expand disks, move old data with tiered storage, alert on disk at 70%</td></tr>
+          <tr><td>Spark job that ran for a year now OOMs</td><td>Data grew or skew appeared: one key now dominates a join or groupBy</td><td>Check the stage's max-versus-median task time; AQE skew join, salting, broadcast (Chapter 6)</td></tr>
+          <tr><td>Backfill takes down the source DB</td><td>Hundreds of parallel tasks reading production with no limit</td><td>Read from a replica or snapshot export; limit concurrency with pools; run off-peak</td></tr>
+          <tr><td>Daily totals off twice a year</td><td>Daylight-saving shifts with local-time partitioning: a 23- or 25-hour day</td><td>Store and partition in UTC; convert to local time at the presentation layer</td></tr>
+          <tr><td>Rerun doubled yesterday's revenue</td><td>Load appends instead of overwriting the partition</td><td>Idempotent writes: overwrite the partition or <code>MERGE</code> on key (§10.2)</td></tr>
+          <tr><td>Warehouse bill spikes overnight</td><td>A query with a missing filter or a cross join, scheduled hourly; an auto-scaling warehouse with no cap</td><td>Resource monitors and budgets, query timeouts, cost alerts per pipeline</td></tr>
+        </tbody></table></div>
+        <div class="note iq"><p class="nt">Interview angle</p><p>"After a deploy, a dashboard shows a dip for 40 minutes, then normal." Two different stories fit and you should name both: data delayed (lag during a rebalance, then catch-up, which fixes itself once late data lands if your windows allow it) or data lost (offsets reset to latest, which never fixes itself). Then say how you'd tell them apart: compare source counts with sink counts for the window, and check the consumer group's offset history.</p></div>
+        <div class="pn"></div>
+      </section>
+
+      <section class="sec" id="s21-4" data-num="21.4" data-t="Real postmortems worth knowing">
+        <p class="sec-num">21.4</p><h2>Real postmortems worth knowing</h2>
+        <p><b>Reddit, Pi Day 2023: a Kubernetes upgrade.</b> Reddit upgraded a large, old cluster from Kubernetes 1.23 to 1.24 and the site went down for over five hours. Kubernetes 1.24 stopped applying the <code>node-role.kubernetes.io/master</code> label in favour of <code>control-plane</code>. Reddit's networking relied on route reflectors whose node selectors still matched the old label; the configuration lived nowhere in code, and the people who knew about it had left. With the label gone, the route reflectors disappeared and pod networking broke. Restoring the control plane from backup was considered but was untested and risky. Lessons: test upgrades on a cluster as old and odd as production, keep all configuration in code, rehearse restore procedures, and read the removed-behaviour notes, not just removed APIs. <a href="https://www.reddit.com/r/RedditEng/comments/11xx5o0/you_broke_reddit_the_piday_outage/" target="_blank" rel="noopener">Reddit's postmortem</a>.</p>
+        <p><b>Datadog, March 2023: an OS update in every region at once.</b> A systemd security update was installed automatically on tens of thousands of Ubuntu 22.04 nodes during the same 06:00–07:00 UTC window in five regions. Restarting <code>systemd-networkd</code> deleted the routes managed by Cilium, the cluster's CNI, so the nodes dropped off the network. Freshly booted nodes didn't show the problem (the ordering differed at boot), which is why tests missed it. Full recovery and data backfill took about two days. Lessons: no change, including OS patches, should bypass staged rollout; identical schedules across regions defeat regional isolation; and test the "restart on a running node" path, not only fresh boots. <a href="https://www.datadoghq.com/blog/2023-03-08-multiregion-infrastructure-connectivity-issue/" target="_blank" rel="noopener">Datadog's postmortem</a>.</p>
+        <p><b>GitLab, January 2017: the wrong database.</b> During a replication incident, an engineer ran a directory deletion on the primary database server instead of the secondary, removing about 300 GB of production data. Then it emerged that the backup methods didn't work as assumed: backups were failing silently and alerts went unseen. A six-hour-old staging snapshot saved most of the data. Lessons: a backup you haven't restored isn't a backup; make the prompt show which host you're on; and guard destructive commands. <a href="https://about.gitlab.com/blog/2017/02/10/postmortem-of-database-outage-of-january-31/" target="_blank" rel="noopener">GitLab's postmortem</a>.</p>
+        <p>More collected failures, by category: <a href="https://k8s.af/" target="_blank" rel="noopener">Kubernetes Failure Stories (k8s.af)</a>.</p>
+        <div class="note iq"><p class="nt">Interview angle</p><p>Citing one of these when asked "how would you upgrade a cluster?" or "how do you know your backups work?" lands well, if you take the mechanism from it, not just the headline. "Reddit lost hours because a selector depended on a label 1.24 removed, so I'd grep our config for deprecated labels and test on a cluster built the same way as production" is the useful version.</p></div>
+        <div class="pn"></div>
+      </section>
+    </article>
+  </div></div>
+</main>
+
+<!-- ================= CH22 · ENGINEERING ARTICLES FROM BIG COMPANIES ================= -->
+<main class="page" id="page-ch22" data-ch="22" data-title="Lessons from engineering blogs">
+  <div class="wrap"><div class="ch-grid">
+    <aside class="side"></aside>
+    <article class="art">
+      <p class="crumb"><a href="#/">Contents</a> · Chapter 22 · Lessons from engineering blogs</p>
+
+      <section class="sec" id="s22-1" data-num="22.1" data-t="Uber: the data platform and Kafka">
+        <p class="sec-num">22.1</p><h2>Uber: the data platform and Kafka</h2>
+        <p>Uber has published more about data infrastructure at scale than almost any other company, and its articles map directly onto interview questions. Read each one for the <b>problem</b>, the <b>mechanism</b> and the <b>trade-off</b>, not the scale numbers.</p>
+        <p><b><a href="https://www.uber.com/blog/uber-big-data-platform/" target="_blank" rel="noopener">Uber's Big Data Platform: 100+ Petabytes with Minute Latency</a></b> (2018). Four generations in one article. A Vertica warehouse fed by fragile, schema-less JSON ETL gave way to a Hadoop data lake (raw data ingested once, Parquet, Hive, Presto, Spark, a central schema service). That scaled, but data was a day stale, snapshot ingestion took over 20 hours on more than 1,000 executors, small files strained the HDFS NameNode, and HDFS plus Parquet couldn't update rows. The fix was <b>Hudi</b>: upserts and deletes on Parquet, plus incremental pulls of only the records changed since a checkpoint. Latency fell from 24 hours to under one hour. <i>Use it for:</i> "why lakehouse table formats exist" (Chapter 9), and "full snapshot versus incremental load".</p>
+        <p><b><a href="https://www.uber.com/blog/reliable-reprocessing/" target="_blank" rel="noopener">Building Reliable Reprocessing and Dead Letter Queues with Kafka</a></b> (2018). Because a consumer commits only after success, one failing message blocks its whole partition. Uber redefined success as reaching a <i>conclusive result</i>: a message that fails moves to a retry topic, then to retry topics with longer delays, and finally to a DLQ, where it can be inspected, purged or merged back once fixed. <i>Use it for:</i> poison pills and error handling in any streaming design (§20.4).</p>
+        <p><b><a href="https://www.uber.com/blog/ureplicator-apache-kafka-replicator/" target="_blank" rel="noopener">uReplicator: Uber's Robust Kafka Replicator</a></b> (2016). MirrorMaker's consumer rebalances stalled cross-datacentre replication for 5–10 minutes at a time, adding a topic needed a restart, and auto-commit could lose data. Uber replaced group rebalancing with a Helix controller that assigns partitions to workers explicitly, and committed offsets only after the data was persisted at the destination. <i>Use it for:</i> why rebalances hurt (§20.3) and "commit after the side effect" as a general rule.</p>
+        <p><b><a href="https://eng.uber.com/chaperone-audit-kafka-messages/" target="_blank" rel="noopener">Chaperone: auditing Kafka end to end</a></b> (2016). Messages are bucketed into 10-minute windows by event time, and each tier of the pipeline reports counts per window; comparing tiers shows where data was lost or duplicated, and how much. <i>Use it for:</i> "how would you know your pipeline is losing data?". Count reconciliation per window, per hop, is the answer.</p>
+        <p><b><a href="https://www.uber.com/blog/kafka-tiered-storage" target="_blank" rel="noopener">Kafka Tiered Storage</a></b> (2024). Local disks made retention expensive, because more retention meant more brokers with CPU and memory you didn't need. KIP-405 keeps recent segments local and older ones in object storage, with no client changes. <i>Use it for:</i> separating storage from compute, the same idea as Snowflake and lakehouses.</p>
+        <p><b><a href="https://arxiv.org/abs/2104.00087" target="_blank" rel="noopener">Real-time Data Infrastructure at Uber</a></b> (SIGMOD 2021 paper). The whole real-time stack in one place: Kafka, Flink, Pinot, HDFS and Presto, with the requirements each serves (freshness, availability, consistency, cost) and where they conflict. The best single reading for a streaming system design round.</p>
+        <div class="note iq"><p class="nt">Interview angle</p><p>Cite an article as evidence for a design choice, not as a credential. "I'd put failing records on a retry topic with a delay and a DLQ, the pattern Uber published, so one bad record can't block a partition" is strong. "Uber uses Kafka" is not an argument.</p></div>
+        <div class="pn"></div>
+      </section>
+
+      <section class="sec" id="s22-2" data-num="22.2" data-t="LinkedIn, Netflix and Airbnb">
+        <p class="sec-num">22.2</p><h2>LinkedIn, Netflix and Airbnb</h2>
+        <p><b><a href="https://engineering.linkedin.com/distributed-systems/log-what-every-software-engineer-should-know-about-real-time-datas-unifying" target="_blank" rel="noopener">The Log: What every software engineer should know about real-time data's unifying abstraction</a></b> (Jay Kreps, LinkedIn, 2013). The essay behind Kafka. An append-only, ordered log is the common thread through database replication, data integration and stream processing: if every system consumes the same ordered log of changes, they all converge to the same state. It explains why LinkedIn replaced a tangle of point-to-point pipelines with one central log. <i>Use it for:</i> any question about CDC, event sourcing, or why Kafka is a log and not a queue.</p>
+        <p><b><a href="https://www.infoq.com/news/2018/09/Netflix-Keystone-Real-Time-Proc/" target="_blank" rel="noopener">Netflix Keystone</a></b> (InfoQ coverage, 2018). Netflix's real-time platform routes trillions of events a day from Kafka into sinks such as S3 and Elasticsearch, and grew into a self-service stream processing platform on Flink where teams declare a pipeline and the platform runs it. <i>Use it for:</i> platform thinking: multi-tenant streaming, isolation between tenants, and making the common path self-service.</p>
+        <p><b><a href="https://medium.com/airbnb-engineering/data-quality-at-airbnb-870d03080469" target="_blank" rel="noopener">Data Quality at Airbnb</a></b> (2020) and <b><a href="https://medium.com/airbnb-engineering/how-airbnb-built-wall-to-prevent-data-bugs-ad1b081d6e8f" target="_blank" rel="noopener">How Airbnb Built "Wall" to prevent data bugs</a></b>. Data quality is treated as an ownership and process problem first: certified datasets with named owners, design reviews and enforced standards, then a shared check framework built into pipelines so a failing check stops bad data before it's published. <i>Use it for:</i> "how do you ensure data quality?", where the strong answer covers ownership, contracts and blocking checks, not just a testing library.</p>
+        <div class="note iq"><p class="nt">Interview angle</p><p>"Queue or log?" Kreps' essay gives the answer: a queue deletes a message once consumed and has one logical consumer per message; a log retains records in order and lets any number of consumers read independently, at their own pace, and replay. That retention and replay is what makes Kafka work as both a pipe and a source of truth.</p></div>
+        <div class="pn"></div>
+      </section>
+
+      <section class="sec" id="s22-3" data-num="22.3" data-t="DoorDash and Pinterest">
+        <p class="sec-num">22.3</p><h2>DoorDash and Pinterest</h2>
+        <p><b><a href="https://www.infoq.com/presentations/doordash-event-system/" target="_blank" rel="noopener">DoorDash: from zero to a hundred billion events</a></b> (QCon talk). DoorDash moved its real-time event processing from a mix of SQS and Kinesis to a unified platform on Kafka and Flink, with a proxy in front of Kafka so services and apps publish over a simple API without each embedding Kafka clients, and with self-service onboarding and schema enforcement. <i>Use it for:</i> "build versus buy versus consolidate" decisions, and why a producer proxy is useful at scale (one place for auth, schemas, batching and quotas).</p>
+        <p><b><a href="https://medium.com/pinterest-engineering/next-gen-data-processing-at-massive-scale-at-pinterest-with-moka-part-1-of-2-39a36d5e82c4" target="_blank" rel="noopener">Pinterest Moka: next-gen data processing</a></b> (two parts) and the AWS write-up on <a href="https://aws.amazon.com/blogs/containers/inside-pinterests-custom-spark-job-logging-and-monitoring-on-amazon-eks-using-aws-for-fluent-bit-amazon-s3-and-adot" target="_blank" rel="noopener">its Spark logging and monitoring on EKS</a>. Pinterest moved its Spark platform from Hadoop and YARN to Spark on Amazon EKS, with a batch scheduler (Apache YuniKorn) for queues and fairness, and rebuilt the things YARN used to give for free: job logs, history, metrics and resource isolation. <i>Use it for:</i> the "EMR or EKS for Spark?" question (§19.3), with real costs: you gain one compute platform and container images, and you take on scheduling, shuffle and observability work.</p>
+        <div class="note iq"><p class="nt">Interview angle</p><p>Both stories are migrations, and migrations are a favourite senior topic. The shape to describe: why the old system stopped fitting (with a measurable pain), how they ran old and new side by side, how they compared outputs before switching, and what they had to rebuild that the old platform did implicitly.</p></div>
+        <div class="pn"></div>
+      </section>
+
+      <section class="sec" id="s22-4" data-num="22.4" data-t="How to read and use an engineering blog">
+        <p class="sec-num">22.4</p><h2>How to read and use an engineering blog</h2>
+        <p>Company blogs are the best free source of production experience, but they're written to recruit and they describe the success, rarely the cost. Read each one with five questions and write the answers down in a few lines:</p>
+        <div class="cs"><table><thead><tr><th>Question</th><th>Why it matters</th></tr></thead><tbody>
+          <tr><td>What hurt?</td><td>The measurable pain that forced the change (latency, cost, incidents, toil). This is the part you'll reuse in interviews.</td></tr>
+          <tr><td>What's the mechanism?</td><td>The one idea that removed the pain: incremental upserts, retry topics, explicit partition assignment.</td></tr>
+          <tr><td>What did it cost?</td><td>New components to run, new failure modes, lost guarantees (Hudi's write amplification, salted keys losing order).</td></tr>
+          <tr><td>Would it apply at 1/100th the scale?</td><td>Most companies don't need Uber's solution. Knowing when not to copy it is a senior signal.</td></tr>
+          <tr><td>What's the open-source or managed equivalent today?</td><td>Hudi, Iceberg and Delta; KIP-405 tiered storage; MSK; EMR on EKS. Articles age; the ideas don't.</td></tr>
+        </tbody></table></div>
+        <p>Good places to keep reading: the engineering blogs of Uber, Netflix, Airbnb, LinkedIn, DoorDash, Pinterest, Lyft, Spotify, Shopify, Stripe and Cloudflare; public postmortems (Cloudflare and GitLab write unusually detailed ones); the <a href="https://k8s.af/" target="_blank" rel="noopener">Kubernetes Failure Stories</a> collection; and papers from VLDB and SIGMOD industry tracks, where these companies publish the deeper versions.</p>
+        <div class="note iq"><p class="nt">Interview angle</p><p>"What's an interesting engineering article you've read recently?" Prepare two, answered with the five questions above, in about a minute each: the problem, the mechanism, the trade-off, and whether you'd do the same at your company's scale. That turns a culture question into a technical one you control.</p></div>
+        <div class="pn"></div>
+      </section>
+    </article>
+  </div></div>
+</main>
+
+
 <!-- ================= COMPANY PLAYBOOKS ================= -->
 <main class="page" id="page-companies" data-title="Company playbooks">
   <div class="wrap">
@@ -1705,6 +2084,50 @@ sess = (df
       <details class="qa"><summary>When would you NOT use an agent?<span class="qtag">design</span></summary><div class="ans"><p>When the path is known, latency or cost must be bounded, results must be exactly reproducible, or a deterministic baseline already meets the bar. Climb the ladder only as far as needed: code, single LLM call, workflow with an agentic step, single agent, multi-agent (§16.1).</p></div></details>
       <details class="qa"><summary>When is a multi-agent architecture justified?<span class="qtag">design</span></summary><div class="ans"><p>When there's a nameable, measurable reason: context isolation, parallel independent work, different permissions, or different models per step. Pass structured evidence between agents, not prose. Then compare against a single-agent baseline on the same evals for accuracy, p95 latency and cost; often the single agent wins (§16.4).</p></div></details>
 
+      <p class="qgroup">Docker &amp; containers</p>
+      <details class="qa"><summary>Container vs virtual machine?<span class="qtag">Docker</span></summary><div class="ans"><p>A VM virtualises hardware and boots its own kernel. A container is an ordinary process on the shared host kernel, isolated by namespaces (what it can see) and limited by cgroups (what it can use). Containers are lighter and start in milliseconds; VMs give a stronger isolation boundary, which is why multi-tenant platforms wrap containers in micro-VMs (§17.1).</p></div></details>
+      <details class="qa"><summary>Why does my container take 30 seconds to stop?<span class="qtag">Docker</span></summary><div class="ans"><p>PID 1 isn't handling <code>SIGTERM</code>. Usually the shell form of <code>CMD</code> or a wrapper script without <code>exec</code> makes <code>sh</code> PID 1, and it doesn't forward the signal, so the orchestrator waits the grace period and sends <code>SIGKILL</code>. Use the exec form or <code>exec</code>, add <code>tini</code>, and handle <code>SIGTERM</code> in the app (§17.3).</p></div></details>
+      <details class="qa"><summary>Exit code 137 vs 143?<span class="qtag">Docker</span></summary><div class="ans"><p>137 = 128 + 9: killed by <code>SIGKILL</code>, either the OOM killer (Kubernetes shows <code>OOMKilled</code>) or a forced kill after the grace period. 143 = 128 + 15: the process exited on <code>SIGTERM</code>, a clean shutdown.</p></div></details>
+      <details class="qa"><summary>How do you make Docker builds fast and images small?<span class="qtag">Docker</span></summary><div class="ans"><p>Order instructions so dependencies install before code is copied (cache reuse), add a <code>.dockerignore</code>, use multi-stage builds with a slim or distroless runtime base, clean package caches in the same <code>RUN</code> that created them, and use BuildKit cache mounts. Measure layers with <code>docker history</code> or <code>dive</code> (§17.2).</p></div></details>
+      <details class="qa"><summary>How do you keep secrets out of images?<span class="qtag">Docker</span></summary><div class="ans"><p>Never pass them via <code>ARG</code>, <code>ENV</code> or <code>COPY</code>: every layer is readable by anyone who can pull the image, even if a later layer deletes the file. Use BuildKit <code>--mount=type=secret</code> for build-time secrets, and inject runtime secrets from the orchestrator, synced from a secrets manager.</p></div></details>
+
+      <p class="qgroup">Kubernetes</p>
+      <details class="qa"><summary>What happens after <code>kubectl apply</code> on a Deployment?<span class="qtag">K8s</span></summary><div class="ans"><p>API server: authenticate, authorise, admission webhooks, persist to etcd. Deployment controller creates a ReplicaSet; ReplicaSet controller creates Pods; scheduler binds each to a node; kubelet pulls the image and starts containers through containerd with CNI networking; after readiness passes, the pod joins the Service's EndpointSlices. Each step is a controller reconciling desired state (§18.1).</p></div></details>
+      <details class="qa"><summary>Requests vs limits?<span class="qtag">K8s</span></summary><div class="ans"><p>Requests are what the scheduler reserves and the CPU weight under contention. Limits are enforced by the kernel at runtime: over the CPU limit you're throttled; over the memory limit you're OOMKilled. Common practice: memory request = limit, a CPU request, and often no CPU limit for latency-sensitive services (§18.2).</p></div></details>
+      <details class="qa"><summary>What are the QoS classes and why do they matter?<span class="qtag">K8s</span></summary><div class="ans"><p>Guaranteed (requests equal limits for every resource), Burstable (some requests) and BestEffort (none). Under node memory pressure the kubelet evicts BestEffort first, then Burstable pods using more than they requested, and Guaranteed last.</p></div></details>
+      <details class="qa"><summary>Liveness vs readiness vs startup probes?<span class="qtag">K8s</span></summary><div class="ans"><p>Readiness controls traffic (fail it and you're removed from the Service). Liveness controls restarts. Startup delays the other two for slow starters. Never check dependencies in liveness: a database blip would restart every pod at once (§18.2).</p></div></details>
+      <details class="qa"><summary>How do you get zero-downtime deploys?<span class="qtag">K8s</span></summary><div class="ans"><p>Rolling update with sensible <code>maxSurge</code>/<code>maxUnavailable</code>, a readiness probe that means "can serve", a <code>preStop</code> sleep so routing removes the pod before it stops, <code>SIGTERM</code> handling that drains in-flight work, a grace period longer than the slowest request, and a PDB so maintenance can't take too many pods at once (§18.4).</p></div></details>
+      <details class="qa"><summary>Intermittent 5-second DNS timeouts in the cluster?<span class="qtag">K8s</span></summary><div class="ans"><p>The <code>ndots:5</code> default turns each external lookup into several search-domain queries (for A and AAAA), overloading CoreDNS and, on older kernels, hitting conntrack races. Use fully qualified names with a trailing dot, lower <code>ndots</code>, scale CoreDNS and run NodeLocal DNSCache (§18.3).</p></div></details>
+      <details class="qa"><summary>Deployment or StatefulSet for Kafka?<span class="qtag">K8s</span></summary><div class="ans"><p>StatefulSet: brokers need stable identities (<code>kafka-0</code>), their own persistent volumes that follow them across restarts, a headless Service so clients can reach a specific broker, and ordered rolling restarts. In practice, use an operator such as Strimzi, which manages the StatefulSets for you.</p></div></details>
+
+      <p class="qgroup">EKS &amp; EMR</p>
+      <details class="qa"><summary>Pods stuck in ContainerCreating on EKS with free CPU?<span class="qtag">EKS</span></summary><div class="ans"><p>Usually VPC CNI IP exhaustion: every pod takes a real VPC IP, and the subnet or the instance's ENI limit has run out. Check the pod events and free subnet IPs. Fix with prefix delegation, a secondary CIDR for pods, or larger subnets, and alarm on available IPs (§19.1).</p></div></details>
+      <details class="qa"><summary>How should pods get AWS permissions?<span class="qtag">EKS</span></summary><div class="ans"><p>Per service account, through EKS Pod Identity or IRSA, so each workload gets its own least-privilege role with temporary credentials. Not through the node's instance role, which every pod on the node would inherit.</p></div></details>
+      <details class="qa"><summary>How do you upgrade an EKS cluster safely?<span class="qtag">EKS</span></summary><div class="ans"><p>Scan for removed APIs, upgrade a staging cluster first, then control plane (one minor version), then add-ons, then roll nodes with PDBs pacing drains, or build a new cluster and shift traffic (blue/green) with GitOps. Watch for webhooks, pinned add-ons and behaviour changes such as removed labels (§19.2).</p></div></details>
+      <details class="qa"><summary>EMR on EC2, EMR Serverless or EMR on EKS?<span class="qtag">EMR</span></summary><div class="ans"><p>EC2: steady heavy batch, full tuning control, Spot task fleets. Serverless: spiky or infrequent jobs, no cluster ops. On EKS: you already run EKS and want one compute platform. State the trade-off each way (§19.3).</p></div></details>
+      <details class="qa"><summary>"Container killed by YARN for exceeding memory limits." Fix?<span class="qtag">EMR</span></summary><div class="ans"><p>Off-heap use exceeded <code>spark.executor.memoryOverhead</code>, typical in PySpark (Python workers, Arrow buffers). Raise overhead or set <code>spark.executor.pyspark.memory</code>, use fewer cores per executor, and fix the skewed partition that usually triggers it (§19.4).</p></div></details>
+      <details class="qa"><summary>How do you use Spot safely on EMR?<span class="qtag">EMR</span></summary><div class="ans"><p>Spot only on task nodes (no HDFS data), core and primary on On-Demand, instance fleets with several instance types and AZs, graceful decommissioning so shuffle data migrates on interruption, and S3 as the durable store.</p></div></details>
+
+      <p class="qgroup">Kafka in depth</p>
+      <details class="qa"><summary>What do <code>acks=all</code> and <code>min.insync.replicas</code> do together?<span class="qtag">Kafka</span></summary><div class="ans"><p>With RF 3, <code>min.insync.replicas=2</code> and <code>acks=all</code>, a write is acknowledged only after at least two in-sync replicas have it, so one broker can fail without losing acknowledged data. If the ISR drops below 2, writes fail with <code>NotEnoughReplicas</code> rather than risk loss (§20.1).</p></div></details>
+      <details class="qa"><summary>What is the high watermark?<span class="qtag">Kafka</span></summary><div class="ans"><p>The highest offset replicated to all in-sync replicas. Consumers only read below it, so they never see a record that a leader failover could erase.</p></div></details>
+      <details class="qa"><summary>What does the idempotent producer guarantee, and what doesn't it?<span class="qtag">Kafka</span></summary><div class="ans"><p>No duplicates or reordering from retries, per partition, within one producer session (producer id plus sequence numbers). It doesn't cover a producer restart re-sending application data, or writes across partitions; transactions cover those (§20.2).</p></div></details>
+      <details class="qa"><summary>Why is adding partitions to a keyed topic risky?<span class="qtag">Kafka</span></summary><div class="ans"><p>The partition is hash(key) mod partition count, so new records for a key may land on a different partition than its old ones, breaking per-key ordering across the change and any state partitioned by key downstream.</p></div></details>
+      <details class="qa"><summary>Consumers keep rebalancing. Causes?<span class="qtag">Kafka</span></summary><div class="ans"><p>Processing a poll's records takes longer than <code>max.poll.interval.ms</code>; missed heartbeats from GC pauses or CPU throttling; rebalances on every deploy without static membership. Fixes: smaller <code>max.poll.records</code>, faster processing, cooperative sticky assignor, <code>group.instance.id</code> (§20.3).</p></div></details>
+      <details class="qa"><summary>When should a consumer commit offsets?<span class="qtag">Kafka</span></summary><div class="ans"><p>After the side effect is durable. Committing before processing gives at-most-once (a crash loses records); after gives at-least-once (a crash duplicates). Pair after-commit with an idempotent sink for effectively-once results.</p></div></details>
+      <details class="qa"><summary>How do you handle a poison-pill message?<span class="qtag">Kafka</span></summary><div class="ans"><p>Don't retry in place, which blocks the partition. Route failures to retry topics with increasing delays and finally a dead letter queue, monitor the DLQ, and replay after fixing, the pattern Uber published (§22.1).</p></div></details>
+      <details class="qa"><summary>One partition lags while others are fine. Why?<span class="qtag">Kafka</span></summary><div class="ans"><p>A hot key concentrating traffic on that partition, a poison pill blocking it, or a slow consumer instance that owns it. Check per-partition bytes in and lag; salt hot keys, DLQ bad records, replace the slow instance.</p></div></details>
+      <details class="qa"><summary>Log compaction: what are the edge cases?<span class="qtag">Kafka</span></summary><div class="ans"><p>It keeps the latest record per key, but never compacts the active segment, so older values linger. Tombstones (null values) delete keys after <code>delete.retention.ms</code>; a consumer offline longer than that misses the delete.</p></div></details>
+      <details class="qa"><summary>What did KRaft change?<span class="qtag">Kafka</span></summary><div class="ans"><p>Cluster metadata moved from ZooKeeper into a Raft-replicated log run by controller nodes: faster failover, more partitions, one system to run. Kafka 4.0 removed ZooKeeper support, so ZooKeeper clusters migrate to KRaft on 3.x first.</p></div></details>
+
+      <p class="qgroup">Production failures</p>
+      <details class="qa"><summary>A deploy raised error rates. First move?<span class="qtag">incident</span></summary><div class="ans"><p>Roll back, confirm recovery, then investigate with preserved evidence. Mitigation before diagnosis (§21.1).</p></div></details>
+      <details class="qa"><summary>A new consumer deploy and now data is missing. Why?<span class="qtag">incident</span></summary><div class="ans"><p>Likely a new group id with <code>auto.offset.reset=latest</code>: it began at the end of the topic and skipped the gap. Reset offsets to a timestamp before the gap and reprocess into an idempotent sink (§21.3).</p></div></details>
+      <details class="qa"><summary>Every deploy causes a burst of 502s. Why?<span class="qtag">incident</span></summary><div class="ans"><p>Pods stop before load balancers and kube-proxy stop routing to them, because <code>SIGTERM</code> and endpoint removal happen in parallel. Add a <code>preStop</code> sleep, drain on <code>SIGTERM</code>, and tune the load balancer's deregistration delay.</p></div></details>
+      <details class="qa"><summary>Why must database migrations not run in app startup?<span class="qtag">incident</span></summary><div class="ans"><p>All replicas race to migrate; one holds the lock, the rest hang, fail probes and restart, and the rollout never completes. Run migrations once as a Job or a pre-upgrade hook, written to be compatible with both old and new app versions.</p></div></details>
+      <details class="qa"><summary>Tell me about a well-known Kubernetes outage.<span class="qtag">incident</span></summary><div class="ans"><p>Reddit's Pi Day 2023: the 1.24 upgrade stopped applying the <code>node-role.kubernetes.io/master</code> label, the route reflectors' selectors still targeted it, the config wasn't in code, and pod networking failed for over five hours. Lessons: config in code, staging that matches production, rehearsed restores (§21.4).</p></div></details>
+
+
 
     </div>
   </div>
@@ -1954,6 +2377,67 @@ sess = (df
       <tr><td>Read</td><td>Query a table, read run logs, search runbooks</td><td>Autonomous, rate-limited</td></tr>
       <tr><td>Low risk</td><td>Draft a report, post to an internal channel</td><td>Autonomous, logged</td></tr>
       <tr><td>High risk</td><td>Backfill, drop or overwrite data, change config, move money</td><td>Approval bound to exact arguments, then read-back verify</td></tr>
+    </tbody></table></div>
+
+    <p class="cs-h">kubectl triage, in order</p>
+    <p class="cs-sub">Status first, then events, then logs. (§18.4, §21.2)</p>
+    <div class="cs"><table><thead><tr><th>Command</th><th>Answers</th></tr></thead><tbody>
+      <tr><td>kubectl get pods -o wide</td><td>Status, restarts, node, pod IP</td></tr>
+      <tr><td>kubectl describe pod &lt;p&gt;</td><td>Events: scheduling, pulls, probe failures, OOM, exit codes</td></tr>
+      <tr><td>kubectl logs &lt;p&gt; --previous</td><td>Output of the crashed container, not the restarted one</td></tr>
+      <tr><td>kubectl get events --sort-by=.lastTimestamp</td><td>What changed recently across the namespace</td></tr>
+      <tr><td>kubectl rollout history / undo</td><td>What was deployed; the fast rollback</td></tr>
+      <tr><td>kubectl get endpointslices</td><td>Whether a Service has any ready pods behind it</td></tr>
+      <tr><td>kubectl top pod / node</td><td>Live CPU and memory against requests and limits</td></tr>
+      <tr><td>kubectl debug -it &lt;p&gt; --image=busybox</td><td>A shell beside a distroless container</td></tr>
+    </tbody></table></div>
+
+    <p class="cs-h">Container exit codes</p>
+    <p class="cs-sub">128 + signal number. (§17.3)</p>
+    <div class="cs"><table><thead><tr><th>Code</th><th>Meaning</th><th>Usual cause</th></tr></thead><tbody>
+      <tr><td>0</td><td>Clean exit</td><td>A Job finished; for a service, the process returned unexpectedly</td></tr>
+      <tr><td>1</td><td>App error</td><td>Unhandled exception, bad config</td></tr>
+      <tr><td>126 / 127</td><td>Not executable / not found</td><td>Wrong entrypoint, missing binary, CRLF line endings in a script</td></tr>
+      <tr><td>137</td><td>SIGKILL</td><td>OOMKilled, or killed after the grace period</td></tr>
+      <tr><td>139</td><td>SIGSEGV</td><td>Native crash, often wrong architecture or a bad native library</td></tr>
+      <tr><td>143</td><td>SIGTERM</td><td>Graceful shutdown, as intended</td></tr>
+    </tbody></table></div>
+
+    <p class="cs-h">Kafka settings that matter</p>
+    <p class="cs-sub">Durable, ordered, and calm under deploys. (§20.1–20.3)</p>
+    <div class="cs"><table><thead><tr><th>Setting</th><th>Value</th><th>Why</th></tr></thead><tbody>
+      <tr><td>replication.factor</td><td>3</td><td>Survive a broker or AZ loss</td></tr>
+      <tr><td>min.insync.replicas</td><td>2</td><td>An ack means two copies</td></tr>
+      <tr><td>acks</td><td>all</td><td>Wait for the ISR</td></tr>
+      <tr><td>enable.idempotence</td><td>true</td><td>No duplicates or reordering from retries</td></tr>
+      <tr><td>unclean.leader.election.enable</td><td>false</td><td>Never elect a replica that's missing data</td></tr>
+      <tr><td>linger.ms / compression.type</td><td>5–20 / zstd or lz4</td><td>Bigger batches, much higher throughput</td></tr>
+      <tr><td>enable.auto.commit</td><td>false (commit after processing)</td><td>At-least-once; no loss with async workers</td></tr>
+      <tr><td>max.poll.records / max.poll.interval.ms</td><td>Size to processing time</td><td>Prevent poll-timeout rebalance storms</td></tr>
+      <tr><td>group.instance.id</td><td>Pod name</td><td>Static membership: no rebalance on restart</td></tr>
+      <tr><td>partition.assignment.strategy</td><td>CooperativeStickyAssignor</td><td>Incremental rebalances</td></tr>
+      <tr><td>auto.offset.reset</td><td>earliest for new groups that must not miss data</td><td>Avoid silently skipping a gap</td></tr>
+    </tbody></table></div>
+
+    <p class="cs-h">Spark on EMR memory</p>
+    <p class="cs-sub">What YARN actually allocates per executor. (§19.4)</p>
+    <div class="cs"><table><thead><tr><th>Part</th><th>Setting</th><th>Note</th></tr></thead><tbody>
+      <tr><td>JVM heap</td><td>spark.executor.memory</td><td>Execution + storage (unified) + user memory</td></tr>
+      <tr><td>Overhead</td><td>spark.executor.memoryOverhead</td><td>Default max(384 MB, 10%); raise for PySpark, Arrow, netty</td></tr>
+      <tr><td>Python workers</td><td>spark.executor.pyspark.memory</td><td>Cap Python separately when set</td></tr>
+      <tr><td>Container</td><td>heap + overhead (+ pyspark)</td><td>Exceed it and YARN kills the executor</td></tr>
+      <tr><td>Cores</td><td>spark.executor.cores</td><td>4–5 is a common balance; more cores share one overhead</td></tr>
+    </tbody></table></div>
+
+    <p class="cs-h">Incident checklist</p>
+    <p class="cs-sub">Same order every time. (§21.1)</p>
+    <div class="cs"><table><thead><tr><th>Step</th><th>Question</th></tr></thead><tbody>
+      <tr><td>Detect</td><td>Who's the lead, where's the channel, what's the timeline?</td></tr>
+      <tr><td>Blast radius</td><td>Delayed or wrong? Which consumers, which regions?</td></tr>
+      <tr><td>Mitigate</td><td>What changed? Roll back, pause writers, fail over</td></tr>
+      <tr><td>Root cause</td><td>Evidence from the first bad minute</td></tr>
+      <tr><td>Repair</td><td>Idempotent backfill of the affected window; tell owners</td></tr>
+      <tr><td>Postmortem</td><td>Owned, dated actions that kill the class of failure</td></tr>
     </tbody></table></div>
 </main>
 
@@ -3179,6 +3663,137 @@ function escH(t){return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").rep
     $(".in-v",root).innerHTML=blocked===A.length
       ?"<b>All blocked.</b> Several controls overlap, so if one layer fails another still holds. That redundancy is the point."
       :"Switch controls on. Notice that none of them ask the model to spot the attack: each one limits what a fooled model is <b>able</b> to do.";
+  }
+  draw();
+})();
+
+
+/* ================= PLATFORM SIMULATORS (ch 18-20) ================= */
+function escI(t){return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+
+/* --- sim-qos: requests, limits, QoS and what happens --- */
+(function(){
+  var root=$("#sim-qos");if(!root)return;
+  var NODE=15; /* GiB allocatable */
+  function opts(a,sel){return a.map(function(v){return '<option value="'+v+'"'+(v===sel?" selected":"")+'>'+(v==="none"?"not set":v)+'</option>'}).join("")}
+  root.innerHTML='<div class="sim-h"><span class="t">Requests, limits &amp; QoS</span><span class="s">one container on a 15 GiB node</span></div>'
+    +'<div class="row"><div><label>memory request (GiB)</label><select class="q-mr">'+opts(["none","1","2","4","8","16"],"2")+'</select></div>'
+    +'<div><label>memory limit (GiB)</label><select class="q-ml">'+opts(["none","1","2","4","8","16"],"4")+'</select></div>'
+    +'<div><label>CPU request (cores)</label><select class="q-cr">'+opts(["none","0.5","1","2","4"],"1")+'</select></div>'
+    +'<div><label>CPU limit (cores)</label><select class="q-cl">'+opts(["none","0.5","1","2","4"],"none")+'</select></div></div>'
+    +'<div class="row"><div><label>peak memory the app uses: <b class="q-mv"></b> GiB</label><input type="range" class="q-mu" min="0.5" max="10" step="0.5" value="3"></div>'
+    +'<div><label>CPU the app wants: <b class="q-cv"></b> cores</label><input type="range" class="q-cu" min="0.25" max="4" step="0.25" value="1.5"></div></div>'
+    +'<div class="tabs" style="margin-top:12px"><button class="tab on q-p" data-v="0">Node is calm</button><button class="tab q-p" data-v="1">Node under memory pressure</button></div>'
+    +'<div class="readout"><div class="ro q-r1"><div class="v q-qos"></div><div class="k">QoS class</div></div>'
+    +'<div class="ro q-r2"><div class="v q-mem"></div><div class="k">memory outcome</div></div>'
+    +'<div class="ro q-r3"><div class="v q-cpu"></div><div class="k">CPU outcome</div></div></div>'
+    +'<div class="verdict q-v"></div>';
+  var press=0;
+  $$(".q-p",root).forEach(function(b){b.addEventListener("click",function(){press=+b.dataset.v;$$(".q-p",root).forEach(function(x){x.classList.toggle("on",x===b)});draw()})});
+  $$("select,input",root).forEach(function(x){x.addEventListener("input",draw)});
+  function val(c){var v=$(c,root).value;return v==="none"?null:+v}
+  function draw(){
+    var mr=val(".q-mr"),ml=val(".q-ml"),cr=val(".q-cr"),cl=val(".q-cl");
+    var mu=+$(".q-mu",root).value,cu=+$(".q-cu",root).value;
+    $(".q-mv",root).textContent=mu;$(".q-cv",root).textContent=cu;
+    /* a limit with no request: request defaults to the limit */
+    if(mr===null&&ml!==null)mr=ml; if(cr===null&&cl!==null)cr=cl;
+    var v=$(".q-v",root),r1=$(".q-r1",root),r2=$(".q-r2",root),r3=$(".q-r3",root);
+    if(ml!==null&&mr>ml||cl!==null&&cr>cl){
+      $(".q-qos",root).textContent="Invalid";$(".q-mem",root).textContent="—";$(".q-cpu",root).textContent="—";
+      r1.className="ro q-r1 bad";r2.className="ro q-r2";r3.className="ro q-r3";
+      v.innerHTML="<b>Rejected by the API server.</b> A request can't be larger than its limit.";return;
+    }
+    var qos=(mr===null&&ml===null&&cr===null&&cl===null)?"BestEffort":(mr!==null&&ml!==null&&cr!==null&&cl!==null&&mr===ml&&cr===cl)?"Guaranteed":"Burstable";
+    $(".q-qos",root).textContent=qos;
+    r1.className="ro q-r1 "+(qos==="Guaranteed"?"good":qos==="BestEffort"?"bad":"warn");
+    if(mr!==null&&mr>NODE){
+      $(".q-mem",root).textContent="Pending";$(".q-cpu",root).textContent="—";r2.className="ro q-r2 bad";r3.className="ro q-r3";
+      v.innerHTML="<b>Never scheduled.</b> The scheduler reserves the request, and no node has "+mr+" GiB free. The pod stays <code>Pending</code> with a <i>FailedScheduling: Insufficient memory</i> event.";return;
+    }
+    var mem,mc,why;
+    if(ml!==null&&mu>ml){mem="OOMKilled";mc="bad";why="Peak use ("+mu+" GiB) went over the memory limit ("+ml+" GiB). The kernel's OOM killer ends the process: exit code 137, no stack trace, then a restart and eventually <code>CrashLoopBackOff</code>.";}
+    else if(press&&(qos==="BestEffort"||(qos==="Burstable"&&(mr===null||mu>mr)))){mem="Evicted";mc="bad";why="The node ran short of memory and the kubelet evicts pods in order: BestEffort first, then Burstable pods using more than they requested. This pod "+(qos==="BestEffort"?"requested nothing":"uses "+mu+" GiB but requested "+mr)+", so it goes early. Setting the memory request equal to real use protects it.";}
+    else{mem="Running";mc="good";why=press?"Under pressure this pod survives because it stays within what it requested"+(qos==="Guaranteed"?" and is Guaranteed: evicted last":"")+".":"Within its limit"+(ml===null?" (there is none, so a leak could eat the whole node)":"")+".";}
+    var cpu,cc,cwhy;
+    if(cl!==null&&cu>cl){cpu="Throttled";cc="warn";cwhy=" CPU: the app wants "+cu+" cores but the limit is "+cl+". It's slowed, never killed, even if the node has idle cores. Expect worse p99 latency and, for Kafka consumers, missed heartbeats.";}
+    else if(cr!==null&&cu>cr){cpu="Bursting";cc="good";cwhy=" CPU: it uses more than its "+cr+"-core request, borrowing idle cores. Fine until neighbours need them; then it shrinks back toward its request share.";}
+    else{cpu="OK";cc="good";cwhy=cr===null?" CPU: no request, so under contention it gets almost nothing.":" CPU: within its request.";}
+    $(".q-mem",root).textContent=mem;$(".q-cpu",root).textContent=cpu;
+    r2.className="ro q-r2 "+mc;r3.className="ro q-r3 "+cc;
+    v.innerHTML="<b>"+mem+".</b> "+why+cwhy;
+  }
+  draw();
+})();
+
+/* --- sim-triage: pod status to commands and causes --- */
+(function(){
+  var root=$("#sim-triage");if(!root)return;
+  var S={
+    pending:{l:"Pending",cmd:["kubectl describe pod <pod>   # read Events at the bottom","kubectl get nodes -o wide; kubectl describe node <node>","kubectl logs -n karpenter deploy/karpenter   # or cluster-autoscaler"],
+      c:["Insufficient cpu/memory: requests larger than any node's free capacity","Node selector, affinity or taint with no matching node","PVC bound to an EBS volume in another AZ, or no capacity in that AZ","Autoscaler can't launch: instance quota, subnet out of IPs, Spot unavailable"]},
+    pull:{l:"ImagePullBackOff",cmd:["kubectl describe pod <pod>   # exact registry error","aws ecr describe-images --repository-name <repo> --image-ids imageTag=<tag>","kubectl get sa <sa> -o yaml   # imagePullSecrets"],
+      c:["Tag or digest doesn't exist (typo, CI never pushed it)","No permission: node role lacks ECR read, or pull secret expired","Private subnet with no route to the registry (no NAT, no VPC endpoint)","Docker Hub rate limit on anonymous pulls"]},
+    crash:{l:"CrashLoopBackOff",cmd:["kubectl logs <pod> --previous   # the crashed run, not the new one","kubectl get pod <pod> -o jsonpath='{.status.containerStatuses[0].lastState}'","kubectl describe pod <pod>   # probe failures, exit code"],
+      c:["App exits at startup: missing env var, bad config, can't reach a dependency","Liveness probe kills a slow start (add a startup probe)","Exit 137 + OOMKilled: memory limit too low","exec format error: image built for the wrong CPU architecture"]},
+    config:{l:"CreateContainerConfigError",cmd:["kubectl describe pod <pod>","kubectl get secret,configmap -n <ns>"],
+      c:["Referenced Secret or ConfigMap missing in this namespace","The key inside it is misspelled","External Secrets sync failed, so the Secret was never created"]},
+    notready:{l:"Running, not Ready",cmd:["kubectl describe pod <pod>   # Readiness probe failed: …","kubectl exec <pod> -- wget -qO- localhost:<port>/ready","kubectl get endpointslices -l kubernetes.io/service-name=<svc>"],
+      c:["Readiness path or port wrong in the manifest","Readiness depends on a dependency that's down","App listens on 127.0.0.1 instead of 0.0.0.0"]},
+    term:{l:"Stuck Terminating",cmd:["kubectl get pod <pod> -o jsonpath='{.metadata.finalizers}'","kubectl describe node <node>   # node unreachable?"],
+      c:["Node is gone or unreachable, so nothing confirms the kill","A finalizer is waiting on a controller that's broken","App ignores SIGTERM and the grace period is very long"]}
+  };
+  var cur="pending";
+  root.innerHTML='<div class="sim-h"><span class="t">Pod triage</span><span class="s">pick the status you see</span></div><div class="tabs t-tabs"></div><div class="t-out"></div>';
+  var tabs=$(".t-tabs",root);
+  Object.keys(S).forEach(function(k){var b=el("button","tab"+(k===cur?" on":""),S[k].l);b.addEventListener("click",function(){cur=k;$$(".tab",tabs).forEach(function(x){x.classList.toggle("on",x===b)});draw()});tabs.appendChild(b)});
+  function draw(){
+    var s=S[cur];
+    $(".t-out",root).innerHTML='<div class="simlog">'+s.cmd.map(function(c){var i=c.indexOf("#");return '<span class="ac">$</span> '+escI(i>0?c.slice(0,i):c)+(i>0?'<span style="opacity:.6">'+escI(c.slice(i))+'</span>':'')}).join("<br>")+'</div>'
+      +'<div class="verdict"><b>Usual causes, most likely first:</b><ol style="margin:6px 0 0 18px">'+s.c.map(function(c){return "<li>"+escI(c)+"</li>"}).join("")+'</ol></div>';
+  }
+  draw();
+})();
+
+/* --- sim-commit: when you commit decides what a crash costs --- */
+(function(){
+  var root=$("#sim-commit");if(!root)return;
+  var ST={before:"Commit, then process",after:"Process, then commit",idem:"Process, then commit + idempotent sink",async:"Auto-commit, async workers"};
+  var CR={none:"No crash",pre:"Crash before processing",mid:"Crash after record 3 of 5",post:"Crash after processing, before commit"};
+  var st="after",cr="mid";
+  root.innerHTML='<div class="sim-h"><span class="t">Offset commits and crashes</span><span class="s">a batch of offsets 100–104</span></div>'
+    +'<div class="tabs c-st"></div><div class="tabs c-cr"></div><div class="chips c-ch"></div>'
+    +'<div class="readout"><div class="ro c-r1"><div class="v c-lost"></div><div class="k">records lost</div></div><div class="ro c-r2"><div class="v c-dup"></div><div class="k">written twice</div></div><div class="ro c-r3"><div class="v c-sem"></div><div class="k">guarantee</div></div></div>'
+    +'<div class="verdict c-v"></div>';
+  function mk(box,obj,get,set){Object.keys(obj).forEach(function(k){var b=el("button","tab"+(k===get()?" on":""),obj[k]);b.addEventListener("click",function(){set(k);$$(".tab",box).forEach(function(x){x.classList.toggle("on",x===b)});draw()});box.appendChild(b)})}
+  mk($(".c-st",root),ST,function(){return st},function(k){st=k});
+  mk($(".c-cr",root),CR,function(){return cr},function(k){cr=k});
+  function draw(){
+    var done={none:5,pre:0,mid:3,post:5}[cr];
+    var early=(st==="before"||st==="async");
+    var committed=cr==="none"?true:early; /* commit already happened before the crash? */
+    var lost=0,dup=0,h="";
+    for(var i=0;i<5;i++){
+      var o=100+i,cls,tag;
+      if(i<done){ if(cr!=="none"&&!committed){dup++;cls="new";tag=st==="idem"?" overwritten":" ×2";} else {cls="hit";tag=" ✓";} }
+      else { if(committed&&cr!=="none"){lost++;cls="del";tag=" lost";} else {cls="hit";tag=" ✓ on retry";} }
+      if(st==="idem"&&cls==="new"){cls="hit";}
+      h+='<span class="fchip '+cls+'">'+o+tag+'</span>';
+    }
+    var dupShown=st==="idem"?0:dup;
+    $(".c-ch",root).innerHTML=h;
+    $(".c-lost",root).textContent=lost;$(".c-dup",root).textContent=dupShown;
+    var sem=early?"at-most-once":st==="idem"?"effectively once":"at-least-once";
+    $(".c-sem",root).textContent=sem;
+    $(".c-r1",root).className="ro c-r1"+(lost?" bad":" good");$(".c-r2",root).className="ro c-r2"+(dupShown?" warn":" good");
+    $(".c-r3",root).className="ro c-r3"+(early?" bad":st==="idem"?" good":" warn");
+    var t;
+    if(cr==="none")t="With no crash every strategy looks correct. That's why commit bugs survive testing: they only show up when a pod dies, which on Kubernetes is every deploy, scale-down and Spot reclaim.";
+    else if(early&&!lost)t="Lucky this time: the work finished before the crash, so nothing was lost. But the offset was committed before the work, so move the crash earlier and the batch is gone. Correctness that depends on <i>when</i> a pod dies isn't correctness.";
+    else if(early)t=(st==="async"?"Auto-commit ran on the timer while the worker pool still held unprocessed records. ":"The offset moved past the batch before the work was done. ")+"On restart the consumer resumes at 105, so "+lost+" record"+(lost===1?"":"s")+" never get processed. Silent loss, the worst failure in data.";
+    else if(st==="idem")t="The consumer restarts at 100 and reprocesses, but the sink upserts on a key, so the second write replaces the first. At-least-once delivery plus an idempotent sink is how most production pipelines get exactly-once results.";
+    else t="The consumer restarts from the last commit (100) and reprocesses. Nothing is lost, but "+dup+" record"+(dup===1?" is":"s are")+" written twice. Fix the sink, not the commit: upsert or MERGE on a key, or dedup on an event id.";
+    $(".c-v",root).innerHTML=t;
   }
   draw();
 })();
